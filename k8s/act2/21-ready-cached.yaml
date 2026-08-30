@@ -5,7 +5,7 @@
 #    replica count, which is the only property that survives autoscaling.
 #
 # 2. The pool is budgeted against the wall instead of ignoring it. 12 workers
-#    at 3 connections plus 3 api replicas at 3 is 45, against the 57 the
+#    at 3 connections plus 3 api replicas at 3 is 45, against the 54 the
 #    database will actually give us. The number was always knowable.
 #
 # 3. maxReplicaCount is 12, not 24. An autoscaler with no ceiling is a way to

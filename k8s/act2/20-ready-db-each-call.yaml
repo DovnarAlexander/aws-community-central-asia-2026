@@ -8,9 +8,10 @@
 # follows is arithmetic.
 #
 # The worker is scaled by KEDA on queue depth, from zero. Its pool is four
-# connections per replica; the database has 60, minus the three RDS reserves.
+# connections per replica. The database has 60, of which RDS keeps 4 for itself
+# and 2 more are held back for the observer -- 54 are actually available.
 # maxReplicaCount is 24 here, so the ceiling is 24x4 = 96 worker connections
-# plus 3x4 from the api against a budget of 57. The wall is not a risk, it is
+# plus 3x4 from the api against a budget of 54. The wall is not a risk, it is
 # a schedule.
 apiVersion: apps/v1
 kind: Deployment

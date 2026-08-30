@@ -42,9 +42,15 @@ variable "instance_class" {
 
 variable "max_connections" {
   description = <<-EOT
-    The wall. Act 2 exceeds it deliberately: 16 replicas x POOL_MAX 4 = 64
-    against 60, minus the 3 RDS keeps back for the superuser -- which is also
-    what lets the psql panel keep reporting while everything else is locked out.
+    The wall, and act 2 exceeds it on purpose.
+
+    What the application actually gets is lower than this number: RDS keeps 4
+    connections for its own rds_reserved role, and 2 more are held by
+    reserved_connections. 60 here means 54 in practice.
+
+    Those last 2 are what keeps the stage panel alive after the wall goes up --
+    db/seed.sql grants pg_use_reserved_connections to the master user so the
+    counter can still connect when nothing else can.
   EOT
   type        = number
   default     = 60

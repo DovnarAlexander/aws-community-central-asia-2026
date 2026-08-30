@@ -127,12 +127,19 @@ else
   bad 'secret/db' 'task secrets'
 fi
 
+if kubectl -n "$NS" get deploy dbshell >/dev/null 2>&1; then
+  ok 'dbshell'
+else
+  bad 'dbshell' 'task dbshell'
+fi
+
 # The row count is the one thing that silently ruins act 2: a half-seeded table
 # makes the expensive readiness scan cheap, and the cascade never arrives.
-ROWS=$(kubectl -n "$NS" run preflight-rows --rm -i --restart=Never --quiet \
-       --image=postgres:16-alpine --overrides='{"spec":{"serviceAccountName":"demo"}}' \
-       --env="DSN=$(kubectl -n "$NS" get secret db -o jsonpath='{.data.dsn}' 2>/dev/null | base64 -d 2>/dev/null)" \
-       -- psql "$DSN" -tAc 'SELECT count(*) FROM items' 2>/dev/null | tr -d '[:space:]')
+#
+# Single-quoted on purpose. $DSN has to reach the pod's shell intact -- expanded
+# here it is empty, because the DSN only exists inside the container.
+ROWS=$(kubectl exec -n "$NS" deploy/dbshell -- \
+       sh -c 'psql "$DSN" -tAc "SELECT count(*) FROM items"' 2>/dev/null | tr -d '[:space:]')
 
 case "$ROWS" in
   2000000) ok 'seeded rows' "$ROWS" ;;

@@ -148,6 +148,13 @@ resource "helm_release" "keda" {
       }
     }
   })]
+
+  # The association has to exist before the pod does. Pod Identity injects
+  # credentials at pod creation, so an operator started first comes up with no
+  # AWS access at all and reports "no EC2 IMDS role found" until someone
+  # restarts it -- a failure that looks like a broken trigger rather than a
+  # broken ordering.
+  depends_on = [aws_eks_pod_identity_association.keda]
 }
 
 # KEDA polls SQS for the queue depth it scales on, so the operator needs to read
@@ -183,13 +190,14 @@ resource "aws_iam_role_policy" "keda" {
   })
 }
 
+# Deliberately does not depend on the Helm release -- the dependency runs the
+# other way, see the release above. An association can be created for a service
+# account that does not exist yet.
 resource "aws_eks_pod_identity_association" "keda" {
   cluster_name    = var.cluster_name
   namespace       = "keda"
   service_account = "keda-operator"
   role_arn        = aws_iam_role.keda.arn
-
-  depends_on = [helm_release.keda]
 }
 
 # ── the application's own SQS access ─────────────────────────────────────────
