@@ -42,3 +42,14 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+# Lambda build artifacts
+infra/*/.build/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Terragrunt
+.terragrunt-cache/
+.terragrunt-stack/
+infra/local.hcl
