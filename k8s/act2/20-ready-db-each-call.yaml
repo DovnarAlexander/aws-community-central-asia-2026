@@ -1,0 +1,165 @@
+# Act 2, beat 1 -- the readiness probe that passed review.
+#
+# "Readiness should verify we can actually read our data." Nobody argues with
+# that in a pull request, and at three replicas nobody notices: a scan every two
+# seconds, three times over, is a rounding error on the database.
+#
+# The cost is replicas x (1/period). That is the entire act. Everything that
+# follows is arithmetic.
+#
+# The worker is scaled by KEDA on queue depth, from zero. Its pool is four
+# connections per replica. The database has 60, of which RDS keeps 4 for itself
+# and 2 more are held back for the observer -- 54 are actually available.
+# maxReplicaCount is 24 here, so the ceiling is 24x4 = 96 worker connections
+# plus 3x4 from the api against a budget of 54. The wall is not a risk, it is
+# a schedule.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc
+  namespace: demo
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: svc }
+  template:
+    metadata:
+      labels: { app: svc }
+    spec:
+      serviceAccountName: demo
+      terminationGracePeriodSeconds: 2
+      nodeSelector:
+        role: demo
+      containers:
+        - name: svc
+          image: ${IMAGE}
+          command: ["/api"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WARMUP_SECONDS
+              value: "10"
+            - name: WORK_LATENCY_MS
+              value: "200"
+            - name: POOL_MAX
+              value: "4"
+            - name: HEALTHZ_MODE
+              value: "local"
+            - name: READY_MODE
+              value: "db_each_call"
+            - name: QUEUE_URL
+              value: ${QUEUE_URL}
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "250m", memory: "64Mi" }
+          startupProbe:
+            httpGet: { path: /startupz, port: 8080 }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: demo
+spec:
+  # Replicas are owned by KEDA from here on.
+  selector:
+    matchLabels: { app: worker }
+  template:
+    metadata:
+      labels: { app: worker }
+    spec:
+      serviceAccountName: demo
+      terminationGracePeriodSeconds: 5
+      nodeSelector:
+        role: demo
+      containers:
+        - name: worker
+          image: ${IMAGE}
+          command: ["/worker"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WARMUP_SECONDS
+              value: "5"
+            - name: WORK_LATENCY_MS
+              value: "200"
+            - name: POOL_MAX
+              value: "4"
+            - name: CONCURRENCY
+              value: "2"
+            - name: HEALTHZ_MODE
+              value: "local"
+            - name: READY_MODE
+              value: "db_each_call"
+            - name: QUEUE_URL
+              value: ${QUEUE_URL}
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "250m", memory: "64Mi" }
+          startupProbe:
+            httpGet: { path: /startupz, port: 8080 }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 3
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: sqs
+  namespace: demo
+spec:
+  # The KEDA operator reads the queue with its own Pod Identity association,
+  # created by the platform unit. No keys anywhere.
+  podIdentity:
+    provider: aws
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker
+  namespace: demo
+spec:
+  scaleTargetRef:
+    name: worker
+  minReplicaCount: 0
+  maxReplicaCount: 24
+  pollingInterval: 5
+  cooldownPeriod: 30
+  triggers:
+    - type: aws-sqs-queue
+      authenticationRef:
+        name: sqs
+      metadata:
+        queueURL: ${QUEUE_URL}
+        queueLength: "20"
+        awsRegion: ${AWS_REGION}
+        scaleOnInFlight: "true"

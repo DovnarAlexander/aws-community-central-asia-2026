@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# The entry point. On stage the only key pressed is next: right arrow, Enter or
+# space.
+#
+#   ./demo            from the top
+#   ./demo 2.3        jump to a beat (earlier ones run silently)
+#   ./demo --list     show every beat
+#   ./demo --reset    tear the workloads down and start over
+
+set -uo pipefail
+DEMO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export DEMO_ROOT
+cd "$DEMO_ROOT"
+
+# shellcheck source=lib/demo.sh
+. "$DEMO_ROOT/lib/demo.sh"
+# shellcheck source=lib/story.sh
+. "$DEMO_ROOT/lib/story.sh"
+# shellcheck source=steps/act1.sh
+. "$DEMO_ROOT/steps/act1.sh"
+# shellcheck source=steps/act2.sh
+. "$DEMO_ROOT/steps/act2.sh"
+
+demo_main "$@"

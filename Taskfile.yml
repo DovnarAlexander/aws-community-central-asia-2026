@@ -1,0 +1,340 @@
+# Everything that happens before, during and after the talk.
+#
+# `task cost:check` is the command to run at the end of every session -- see
+# docs/PLAN.md, "Three layers of guard". Nothing stays up between sessions.
+#
+# Infrastructure is Terragrunt: units in infra/<name>/terragrunt.hcl, the
+# Terraform they run in infra/modules/<name>/, shared configuration in
+# infra/root.hcl. The ephemeral demo environment is a stack:
+# infra/demo/terragrunt.stack.hcl.
+version: '3'
+
+env:
+  AWS_PROFILE: '{{.AWS_PROFILE | default "personal"}}'
+  AWS_REGION: '{{.AWS_REGION | default "eu-central-1"}}'
+  TG_NON_INTERACTIVE: '{{.TG_NON_INTERACTIVE | default "false"}}'
+
+vars:
+  PROJECT: probes-demo
+  GUARDRAILS: infra/guardrails
+  STACK: infra/demo
+  TTL_HOURS: '{{.TTL_HOURS | default "8"}}'
+
+tasks:
+  default:
+    desc: list what there is to do
+    silent: true
+    cmds:
+      - task --list
+
+  # ── the demo environment ───────────────────────────────────────────────────
+
+  up:
+    desc: bring up the whole environment — ~20 min, mostly the EKS control plane
+    silent: true
+    cmds:
+      - task: stack:run
+        vars: { TG_CMD: 'apply -auto-approve' }
+      - task: kubeconfig
+      - cmd: |
+          printf '\n  \033[1;32menvironment up\033[0m\n'
+          printf '  everything is tagged ExpiresAt=%s — the reaper takes it from there.\n' "$(PROBES_TTL_HOURS={{.TTL_HOURS}} ./scripts/expires-at.sh)"
+          printf '  \033[1mtask down\033[0m when you stop working. not later.\n\n'
+
+  down:
+    desc: destroy the environment, then prove it is gone
+    silent: true
+    cmds:
+      # The sweep runs even when the destroy fails, which is exactly when it
+      # matters: a half-finished destroy leaves a cluster billing while the
+      # command that was supposed to remove it has already exited non-zero.
+      - defer:
+          cmd: |
+            printf '\n  verifying nothing survived the destroy\n'
+            ./scripts/cost-check.sh
+      - task: down:workloads
+      - task: stack:run
+        vars: { TG_CMD: 'destroy -auto-approve' }
+
+  down:workloads:
+    internal: true
+    silent: true
+    cmds:
+      # Remove what the demo created inside the cluster before Terraform tries
+      # to uninstall the charts that own the CRDs behind it.
+      #
+      # A leftover ScaledObject or TriggerAuthentication keeps its CRD alive,
+      # the CRD keeps the KEDA release alive, and `helm uninstall` sits there
+      # until it times out -- which aborts the whole destroy with an EKS cluster
+      # still running. Learned the expensive way.
+      - |
+        kubectl delete scaledobject,triggerauthentication --all -A --timeout=30s 2>/dev/null || true
+        kubectl delete ns demo --timeout=60s 2>/dev/null || true
+        printf '  \033[2mcluster workloads cleared\033[0m\n'
+
+  plan:
+    desc: what would change in the environment
+    silent: true
+    cmds:
+      - task: stack:run
+        vars: { TG_CMD: 'plan' }
+
+  stack:run:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        # One instant shared by every unit in the run, so repeated plans do not
+        # churn the ExpiresAt tag.
+        export PROBES_EXPIRES_AT="$(PROBES_TTL_HOURS={{.TTL_HOURS}} ./scripts/expires-at.sh)"
+        cd {{.STACK}}
+        terragrunt stack run -- {{.TG_CMD}}
+
+  stack:generate:
+    desc: regenerate .terragrunt-stack from terragrunt.stack.hcl
+    dir: '{{.STACK}}'
+    cmds:
+      - terragrunt stack generate
+
+  kubeconfig:
+    desc: point kubectl at the demo cluster
+    silent: true
+    cmds:
+      - aws eks update-kubeconfig --name {{.PROJECT}} --alias {{.PROJECT}} >/dev/null
+      - cmd: printf '  \033[1;32m✓\033[0m kubectl now points at {{.PROJECT}}\n'
+
+  db:snapshot:
+    desc: snapshot the seeded database so later runs restore instead of re-seeding
+    silent: true
+    cmds:
+      - |
+        SNAP="{{.PROJECT}}-seeded-$(date -u +%Y%m%d-%H%M%S)"
+        aws rds create-db-snapshot \
+          --db-instance-identifier {{.PROJECT}} \
+          --db-snapshot-identifier "$SNAP" \
+          --query 'DBSnapshot.DBSnapshotIdentifier' --output text
+        printf '  restore from it by setting snapshot_identifier in infra/units/database\n'
+
+  # ── application ────────────────────────────────────────────────────────────
+
+  images:
+    desc: build the image and push it to ECR — arm64, to match the nodes
+    silent: true
+    cmds:
+      - |
+        # `terragrunt output -raw` pads its value with trailing spaces, which
+        # turn a tag into garbage the registry then reports as a missing
+        # repository. Strip before use.
+        REPO=$(cd {{.STACK}}/.terragrunt-stack/registry && terragrunt output -raw repository_url 2>/dev/null | tr -d '[:space:]')
+        [ -n "$REPO" ] || { printf '  \033[1;31m✗\033[0m no ECR repository — run task up\n'; exit 1; }
+        REGISTRY=${REPO%%/*}
+
+        # The registry token is written straight into an isolated docker config
+        # rather than passed through `docker login`. On macOS the login path
+        # delegates to the keychain, which needs a click to unlock and fails
+        # outright in any non-interactive run. The token lasts twelve hours and
+        # goes away with the directory.
+        DOCKER_CONFIG=$(mktemp -d)
+        export DOCKER_CONFIG
+        trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+        printf '{"auths":{"%s":{"auth":"%s"}}}' "$REGISTRY" \
+          "$(printf 'AWS:%s' "$(aws ecr get-login-password)" | base64 | tr -d '\n')" \
+          > "$DOCKER_CONFIG/config.json"
+
+        docker build --platform linux/arm64 -t "$REPO:latest" app
+        docker push "$REPO:latest"
+        printf '\n  \033[1;32m✓\033[0m %s:latest\n\n' "$REPO"
+
+  secrets:
+    desc: put the database DSN into the cluster as a secret
+    silent: true
+    cmds:
+      - kubectl apply -f k8s/00-namespace.yaml
+      - |
+        DSN=$(aws ssm get-parameter --name /{{.PROJECT}}/database/dsn --with-decryption \
+              --query 'Parameter.Value' --output text)
+        kubectl -n demo create secret generic db \
+          --from-literal=dsn="$DSN" \
+          --dry-run=client -o yaml | kubectl apply -f -
+        printf '  \033[1;32m✓\033[0m secret/db\n'
+
+  seed:
+    desc: load 2M rows into RDS — a couple of minutes, run once per environment
+    silent: true
+    cmds:
+      - task: secrets
+      - kubectl -n demo create configmap seed-sql --from-file=seed.sql=db/seed.sql --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl -n demo delete job seed --ignore-not-found
+      - kubectl apply -f k8s/seed-job.yaml
+      - cmd: printf '\n  waiting for the seed job\n'
+      - kubectl -n demo wait --for=condition=complete job/seed --timeout=900s
+      - kubectl -n demo logs job/seed --tail=5
+
+  bootstrap:
+    desc: everything the night before — infra, image, data
+    cmds:
+      - task: up
+      - task: images
+      - task: seed
+      - cmd: printf '\n  \033[1;32mready\033[0m — consider task db:snapshot so the next run restores instead of re-seeding\n\n'
+        silent: true
+
+  # ── cost control ───────────────────────────────────────────────────────────
+
+  stage:
+    desc: open the tmux layout and start the driver — the one command on stage
+    interactive: true
+    cmds:
+      - ./stage
+
+  reset:
+    desc: tear the workloads down for a clean run, leaving the cluster up
+    cmds:
+      - ./demo --reset
+
+  dbshell:
+    desc: the always-on psql pod the stat panel and the driver exec into
+    cmds:
+      - kubectl apply -f k8s/dbshell.yaml
+      - kubectl -n demo rollout status deploy/dbshell --timeout=180s
+
+  preflight:
+    desc: one screen of checks — run this backstage before going on
+    silent: true
+    cmds:
+      - ./scripts/preflight.sh
+
+  smoke:
+    desc: run the whole demo unattended and check the failures still happen (~20 min)
+    silent: true
+    cmds:
+      - ./scripts/smoke.sh
+
+  cost:check:
+    desc: is anything running that costs money? run this at the end of every session
+    silent: true
+    cmds:
+      - ./scripts/cost-check.sh
+
+  cost:check:all:
+    desc: same sweep across every region — slower, for when something escaped
+    silent: true
+    cmds:
+      - ./scripts/cost-check.sh --all-regions
+
+  cost:spend:
+    desc: month-to-date spend by service
+    silent: true
+    cmds:
+      - |
+        start=$(date -v1d +%Y-%m-%d 2>/dev/null || date -d "$(date +%Y-%m-01)" +%Y-%m-%d)
+        end=$(date -v+1d +%Y-%m-%d 2>/dev/null || date -d tomorrow +%Y-%m-%d)
+        aws ce get-cost-and-usage \
+          --time-period Start=$start,End=$end \
+          --granularity MONTHLY --metrics UnblendedCost \
+          --group-by Type=DIMENSION,Key=SERVICE \
+        | jq -r '.ResultsByTime[0].Groups[]
+                 | select((.Metrics.UnblendedCost.Amount|tonumber) > 0.005)
+                 | "  \(.Metrics.UnblendedCost.Amount|tonumber*100|round/100)\t\(.Keys[0])"' \
+        | sort -rn \
+        | awk -F'\t' '{printf "  $%-8s %s\n", $1, $2}'
+        printf '\n'
+
+  # ── guardrails ─────────────────────────────────────────────────────────────
+
+  guardrails:check-email:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if [ -n "${PROBES_ALERT_EMAIL:-}" ]; then exit 0; fi
+        if [ -f infra/local.hcl ] && grep -q 'alert_email' infra/local.hcl; then exit 0; fi
+        printf '\n  \033[1;31m✗\033[0m no alert address configured — the guards would report into the void.\n\n'
+        printf '    export PROBES_ALERT_EMAIL=you@example.com\n'
+        printf '    or write infra/local.hcl (gitignored):  locals { alert_email = "you@example.com" }\n\n'
+        exit 1
+
+  guardrails:validate:
+    desc: check the HCL parses and the inputs line up with the module's variables
+    silent: true
+    cmds:
+      - terragrunt hcl validate --inputs
+      - cmd: printf '  \033[1;32m✓\033[0m guardrails HCL valid\n'
+
+  guardrails:plan:
+    desc: show what the guardrails stack would change
+    deps: [guardrails:check-email]
+    dir: '{{.GUARDRAILS}}'
+    cmds:
+      - terragrunt run -- plan
+
+  guardrails:apply:
+    desc: create the reaper, the schedule and the budget alarms
+    deps: [guardrails:check-email]
+    dir: '{{.GUARDRAILS}}'
+    cmds:
+      - terragrunt run -- apply
+      - cmd: |
+          printf '\n  \033[1;33m!\033[0m confirm the SNS subscription in your inbox.\n'
+          printf '    until you click that link, the reaper reports into the void.\n\n'
+        silent: true
+
+  guardrails:destroy:
+    desc: "remove the guards — only when the project is over, after task down"
+    dir: '{{.GUARDRAILS}}'
+    prompt: This removes the reaper and the budget alarms. Everything else is unguarded afterwards. Continue?
+    cmds:
+      - terragrunt run -- destroy
+
+  guardrails:test:
+    desc: prove the reaper actually reaps — creates a doomed t4g.nano, kills it, cleans up
+    silent: true
+    env:
+      TG_NON_INTERACTIVE: 'true'
+    cmds:
+      # Always tear the scratch unit down, even if a step in the middle fails.
+      # A test of the cost guards must not be the thing that leaks cost.
+      - defer: { task: scratch:destroy }
+      - printf '\n  \033[1mstep 1\033[0m  create a deliberately expired instance\n\n'
+      - cd {{.ROOT_DIR}}/infra/scratch && terragrunt run -- apply -auto-approve
+      - printf '\n  \033[1mstep 2\033[0m  the sweep should now find it\n'
+      - '{{.ROOT_DIR}}/scripts/cost-check.sh || true'
+      - printf '\n  \033[1mstep 3\033[0m  the reaper should terminate it\n'
+      - task: reaper:run
+      - printf '  \033[1mstep 4\033[0m  remove the leftover VPC and subnet\n\n'
+      - cd {{.ROOT_DIR}}/infra/scratch && terragrunt run -- destroy -auto-approve
+      - printf '\n  \033[1mstep 5\033[0m  the sweep should be clean again\n'
+      - '{{.ROOT_DIR}}/scripts/cost-check.sh'
+      - printf '  \033[1;32m✓\033[0m guards verified end to end\n\n'
+
+  scratch:destroy:
+    desc: emergency cleanup if guardrails:test was interrupted halfway
+    silent: true
+    env:
+      TG_NON_INTERACTIVE: 'true'
+    cmds:
+      - cd {{.ROOT_DIR}}/infra/scratch && terragrunt run -- destroy -auto-approve 2>/dev/null || true
+
+  # ── the reaper ─────────────────────────────────────────────────────────────
+
+  reaper:run:
+    desc: invoke the dead-man switch now instead of waiting for the hour
+    silent: true
+    cmds:
+      - |
+        out=$(mktemp)
+        aws lambda invoke \
+          --function-name {{.PROJECT}}-reaper \
+          --cli-binary-format raw-in-base64-out \
+          --payload '{"source":"manual"}' \
+          "$out" >/dev/null
+        printf '\n'
+        jq -r '"  reaped: \(.reaped)", (.actions[]? | "  · \(.)"), (.errors[]? | "  ! \(.)")' "$out" 2>/dev/null || cat "$out"
+        printf '\n'
+        rm -f "$out"
+
+  reaper:logs:
+    desc: recent reaper runs
+    silent: true
+    cmds:
+      - aws logs tail /aws/lambda/{{.PROJECT}}-reaper --since 24h --format short

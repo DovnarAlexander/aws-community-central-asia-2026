@@ -1,0 +1,33 @@
+# The load generator, in the cluster rather than on the laptop.
+#
+# On a laptop the venue's Wi-Fi would sit in the middle of every measurement,
+# and the before/after table at the end of each act is the one place the talk
+# asks the audience to trust a number. This removes the network from the
+# question entirely.
+#
+# It runs on the system node so that scaling the demo workloads never evicts the
+# thing measuring them.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loadgen
+  namespace: demo
+  labels: { app: loadgen }
+spec:
+  serviceAccountName: demo
+  restartPolicy: Never
+  nodeSelector:
+    role: system
+  containers:
+    - name: loadgen
+      image: ${IMAGE}
+      command: ["/loadgen"]
+      args:
+        - -mode=${LOAD_MODE}
+        - -url=${LOAD_URL}
+        - -rps=${LOAD_RPS}
+        - -workers=${LOAD_WORKERS}
+        - -duration=${LOAD_DURATION}
+        - -label=${LOAD_LABEL}
+      resources:
+        requests: { cpu: "200m", memory: "64Mi" }

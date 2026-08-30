@@ -1,0 +1,47 @@
+# Act 1, beat 2 -- Ruslan fixes production the way Ruslan fixes production.
+#
+# 40 is bigger than 30, the CrashLoop stops, and the fix holds until the day the
+# service starts taking longer. It is a bet that tomorrow looks like today.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc
+  namespace: demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: svc }
+  template:
+    metadata:
+      labels: { app: svc }
+    spec:
+      serviceAccountName: demo
+      terminationGracePeriodSeconds: 2
+      nodeSelector:
+        role: demo
+      containers:
+        - name: svc
+          image: ${IMAGE}
+          command: ["/api"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WARMUP_SECONDS
+              value: "30"
+            - name: HEALTHZ_MODE
+              value: "local"
+            - name: READY_MODE
+              value: "cached"
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "250m", memory: "64Mi" }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 40
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3

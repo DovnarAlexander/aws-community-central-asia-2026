@@ -1,0 +1,5 @@
+apiVersion: v2
+name: karpenter-nodepool
+description: The NodePool and EC2NodeClass the demo scales onto
+type: application
+version: 0.1.0
