@@ -143,6 +143,12 @@ tasks:
 
   # ── cost control ───────────────────────────────────────────────────────────
 
+  preflight:
+    desc: one screen of checks — run this backstage before going on
+    silent: true
+    cmds:
+      - ./scripts/preflight.sh
+
   cost:check:
     desc: is anything running that costs money? run this at the end of every session
     silent: true
