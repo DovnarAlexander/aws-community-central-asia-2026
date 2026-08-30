@@ -1,0 +1,13 @@
+# The load generator reaches the api through this. ClusterIP rather than a load
+# balancer: the generator runs inside the cluster, so venue Wi-Fi never shows up
+# in the latency numbers the before/after table is built from.
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc
+  namespace: demo
+spec:
+  selector: { app: svc }
+  ports:
+    - port: 80
+      targetPort: 8080
