@@ -83,12 +83,35 @@ tasks:
     internal: true
     silent: true
     cmds:
+      - task: guard:solo
       - |
         # One instant shared by every unit in the run, so repeated plans do not
         # churn the ExpiresAt tag.
         export PROBES_EXPIRES_AT="$(PROBES_TTL_HOURS={{.TTL_HOURS}} ./scripts/expires-at.sh)"
         cd {{.STACK}}
         terragrunt stack run -- {{.TG_CMD}}
+
+  guard:solo:
+    internal: true
+    silent: true
+    cmds:
+      # Two stack runs at once do not queue -- they race, and a destroy that
+      # overlaps an apply is the worst version of it. A destroy holds the lock
+      # on a unit's state, the apply skips that unit and builds everything
+      # else, and the destroy then deletes resources out from under what was
+      # just created. It cost us a database, and had it reached the network
+      # unit it would have taken the VPC out from under a live cluster.
+      #
+      # A destroy is slow in exactly the places that invite this: the database
+      # security group sat in DependencyViolation for thirteen minutes looking
+      # like a finished run.
+      - |
+        if pgrep -f 'terragrunt.*stack run' >/dev/null 2>&1; then
+          printf '\n  \033[1;31manother terragrunt stack run is already going\033[0m\n\n'
+          ps -o pid,etime,command -p $(pgrep -f 'terragrunt.*stack run' | tr '\n' ',' | sed 's/,$//') 2>/dev/null | sed 's/^/  /'
+          printf '\n  wait for it, or kill it -- do not run both.\n\n'
+          exit 1
+        fi
 
   stack:generate:
     desc: regenerate .terragrunt-stack from terragrunt.stack.hcl

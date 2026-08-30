@@ -216,6 +216,35 @@ the cluster.
 **Everything has gone wrong.** The deck is a complete talk on its own. The demo is the best
 part, not the only part.
 
+## Never run two stack runs at once
+
+`task up` and `task down` do not queue behind each other. They race, and the losing side is
+whatever was created most recently.
+
+Seen once, and worth describing exactly. A `task down` was still running — its last resource,
+the database security group, sat in `DependencyViolation` for thirteen minutes while RDS
+released its network interfaces, printing `Still destroying...` and looking like a stuck but
+harmless tail. A `task bootstrap` started in another window. The apply could not take the
+lock on the database unit, so it skipped it and built everything else: VPC, cluster, node
+group, queues, registry, platform. The destroy then carried on and deleted the RDS instance,
+the DSN parameter, the subnet group and the parameter group. `task seed` failed with
+`ParameterNotFound` — the only visible symptom, and it pointed at the wrong thing entirely.
+
+Had the destroy reached the network unit, it would have taken the VPC out from under a
+live cluster.
+
+`task up` and `task down` now refuse to start while another `terragrunt stack run` is alive.
+If one does need killing, kill it, then release the lock it left behind before applying:
+
+```sh
+cd infra/demo/.terragrunt-stack/<unit>
+terragrunt run -- force-unlock -force <lock-id>   # id is in the .tflock object in S3
+```
+
+Then apply that one unit and let the stack catch up. A unit whose state still lists
+resources AWS no longer has is not a problem: the next apply refreshes, notices, and
+recreates them.
+
 ## Afterwards
 
 ```sh
