@@ -182,6 +182,12 @@ tasks:
     cmds:
       - ./scripts/preflight.sh
 
+  smoke:
+    desc: run the whole demo unattended and check the failures still happen (~20 min)
+    silent: true
+    cmds:
+      - ./scripts/smoke.sh
+
   cost:check:
     desc: is anything running that costs money? run this at the end of every session
     silent: true
