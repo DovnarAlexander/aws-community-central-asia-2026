@@ -52,8 +52,25 @@ tasks:
           cmd: |
             printf '\n  verifying nothing survived the destroy\n'
             ./scripts/cost-check.sh
+      - task: down:workloads
       - task: stack:run
         vars: { TG_CMD: 'destroy -auto-approve' }
+
+  down:workloads:
+    internal: true
+    silent: true
+    cmds:
+      # Remove what the demo created inside the cluster before Terraform tries
+      # to uninstall the charts that own the CRDs behind it.
+      #
+      # A leftover ScaledObject or TriggerAuthentication keeps its CRD alive,
+      # the CRD keeps the KEDA release alive, and `helm uninstall` sits there
+      # until it times out -- which aborts the whole destroy with an EKS cluster
+      # still running. Learned the expensive way.
+      - |
+        kubectl delete scaledobject,triggerauthentication --all -A --timeout=30s 2>/dev/null || true
+        kubectl delete ns demo --timeout=60s 2>/dev/null || true
+        printf '  \033[2mcluster workloads cleared\033[0m\n'
 
   plan:
     desc: what would change in the environment
