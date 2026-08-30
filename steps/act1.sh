@@ -22,7 +22,9 @@ b_1_1() {
   say ""
   say "The pod is Pending. There is nowhere to put it -- so Karpenter goes shopping."
   karpenter "One pod with nowhere to go. Buying a machine."
-  watch_pods 70 "Pending -- waiting on EC2" "app=svc"
+  # Measured at about 20 seconds from Pending to Ready on spot t4g capacity in
+  # eu-central-1. 40 leaves room for a slow day without stalling the beat.
+  watch_pods 40 "Pending -- waiting on EC2" "app=svc"
   wait_for 'kubectl -n demo get pods -l app=svc --no-headers | grep -qv Pending' 180 "node arrived, pod scheduled"
 
   kubelet "Five seconds gone. Asking: are you alive?"

@@ -279,39 +279,83 @@ Two things learned in the process, both now encoded:
 **Outstanding:** the SNS email subscription is `PendingConfirmation`. Until that link in
 `dovnar.alexander@gmail.com` is clicked, budget alarms and reaper reports go nowhere.
 
-### 1. Infrastructure
+### 1. Infrastructure — **done, 2026-08-30**
 A Terragrunt stack for VPC (public subnets, no NAT), EKS, the system node group, Karpenter on spot,
 KEDA, RDS with the pinned parameter group, SQS and DLQ, IRSA or Pod Identity for the worker
 and the KEDA operator, and the S3 backend. `task up` / `task down`. A seed Job for 2M rows,
 followed by a manual RDS snapshot so later runs restore instead of re-seeding.
 
-**Done when:** `task up` produces a reachable cluster, a Karpenter node arrives on demand,
-psql against RDS returns 2,000,000 rows — and `task down` leaves `task cost:check` clean.
+Six units, applied clean. Verified against the live environment: the cluster came up, RDS
+answered from inside the VPC with `max_connections` pinned at 60, the seed job loaded
+2,000,000 rows, and Karpenter provisioned a node on demand.
 
-### 2. Application
+**Karpenter is faster than planned.** Pending to Ready measured at about **20 seconds** on
+spot `t4g` capacity in `eu-central-1`, not the 40–60 assumed. Act 1's waiting beat was
+shortened accordingly.
+
+Three things only real AWS could have told us, all now fixed in the code:
+
+- A Graviton instance type with the module's default `AL2023_x86_64_STANDARD` AMI is
+  rejected outright rather than resolved — the arm64 decision has to be stated twice.
+- Karpenter's controller policy exceeds the 6144-byte ceiling on a managed policy;
+  `enable_inline_policy` moves it to the role, where the limit is 10240.
+- The EKS module disables encryption on `encryption_config = null`, not `{}` — an empty
+  object still satisfies its `!= null` check and produces a config block with no key.
+
+### 2. Application — **done, 2026-08-30**
 Split the existing `main.go` into `api` and `worker` around shared internals. Add
 `/enqueue`, the SQS consume loop, and the worker's probe modes. Build and push to ECR.
 
-**Done when:** a queued message is consumed and deleted, and every probe mode is switchable
-by environment variable.
+One image, three binaries: `api`, `worker`, `loadgen`. Built for arm64, pushed to ECR, and
+running in the cluster.
 
-### 3. Manifests and tuning
+`docker login` on macOS delegates to the keychain even with no `credsStore` configured, and
+the keychain needs a click — so the push writes the registry token into an isolated docker
+config instead. And `terragrunt output -raw` pads its value with trailing spaces, which
+turned `$REPO:latest` into a tag the registry reported as a missing repository.
+
+### 3. Manifests and tuning — **verified, tuning outstanding**
 One manifest per step, the KEDA `ScaledObject`, the Karpenter `NodePool`. Then the real
 work: measure and adjust `POOL_MAX`, `max_connections`, probe periods, scan cost and queue
 targets until every failure lands inside its beat.
 
-**Done when:** each failure reproduces on three consecutive runs.
+Both acts reproduce on the live environment.
 
-### 4. Driver and stage
+**Act 1**, measured: node arrives at t+20s, pod Running at t+30s, first restart at t+50s,
+CrashLoopBackOff at t+80s. The arithmetic holds exactly as written.
+
+**Act 2**, measured: KEDA scaled workers 0 → 4 → 8 → 16 → 24 while Karpenter bought
+1 → 2 → 3 → 4 nodes; the queue climbed past 110,000 and stopped draining; 19 of 24 workers
+went NotReady with `remaining connection slots are reserved`. The spiral is real and needs
+no help.
+
+One thing act 2 exposed that the plan had wrong: **the stage panel went blind at the wall.**
+The observer's connection is refused along with everything else. RDS holds slots back for
+its own internal `rds_reserved` role, and the master user is a member of `rds_superuser`
+rather than a real superuser, so `superuser_reserved_connections` does not reach it either.
+PostgreSQL 16's `pg_use_reserved_connections` does; `db/seed.sql` now grants it. Verified
+with 16 workers holding 50 of 60 connections and every one of them NotReady — the counter
+still reads.
+
+That also corrects the budget everywhere: 60 `max_connections` is **54** in practice, not
+the 57 the manifests claimed.
+
+**Still outstanding:** the three-consecutive-runs rule, and tuning the act 2 beat lengths
+against measured timings rather than estimates.
+
+### 4. Driver and stage — **done, 2026-08-30**
 Port `demo`, `lib/demo.sh`, `lib/story.sh` and `steps/`, translated and recast. Restructure
 into the two acts above. Replace the Postgres stat panel with a combined panel — Karpenter
 nodes, SQS depth, RDS connections — and rework the tmux layout around it.
 
-**Open decision:** move the load generator into the cluster. Venue Wi-Fi would otherwise
-show up in p95 and make the before/after table lie; the cost is some plumbing to get
-summaries back out through `kubectl logs`.
+**Decided:** the load generator runs in-cluster, as a third binary in the same image. Venue
+Wi-Fi in p95 would make the before/after table lie, and that table is the one place the talk
+asks the audience to trust a number. The summary comes back through `kubectl logs` behind a
+`SUMMARY` marker.
 
-### 5. Smoke and rehearsal
+Still unrehearsed end to end — that is phase 5.
+
+### 5. Smoke and rehearsal — **script written, not yet run**
 `task smoke` runs both acts unattended with assertions that the failures still happen. Then
 timed dress rehearsals against the real environment.
 

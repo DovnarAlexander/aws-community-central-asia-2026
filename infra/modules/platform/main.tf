@@ -147,14 +147,27 @@ resource "helm_release" "keda" {
         limits   = { memory = "512Mi" }
       }
     }
-  })]
 
-  # The association has to exist before the pod does. Pod Identity injects
-  # credentials at pod creation, so an operator started first comes up with no
-  # AWS access at all and reports "no EC2 IMDS role found" until someone
-  # restarts it -- a failure that looks like a broken trigger rather than a
-  # broken ordering.
-  depends_on = [aws_eks_pod_identity_association.keda]
+    # Nothing reads this annotation. It exists so the release genuinely depends
+    # on the association, which buys two things.
+    #
+    # Ordering: Pod Identity injects credentials at pod creation, so an operator
+    # that starts before its association exists comes up with no AWS access and
+    # reports "no EC2 IMDS role found" until somebody restarts it -- a failure
+    # that reads as a broken trigger rather than a broken dependency.
+    #
+    # And recreation: if the association is ever replaced, this value changes
+    # and the pod rolls, which is precisely when it needs to.
+    #
+    # A depends_on would give the ordering but not the roll. It also cost us a
+    # teardown: reversing a depends_on on a live state leaves the old edge in
+    # state and the new one in config, the destroy graph cycles, and the cluster
+    # keeps billing until someone breaks the cycle by hand. A real reference has
+    # neither problem.
+    podAnnotations = {
+      "probes-demo/pod-identity" = aws_eks_pod_identity_association.keda.association_id
+    }
+  })]
 }
 
 # KEDA polls SQS for the queue depth it scales on, so the operator needs to read

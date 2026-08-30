@@ -45,10 +45,15 @@ tasks:
     desc: destroy the environment, then prove it is gone
     silent: true
     cmds:
+      # The sweep runs even when the destroy fails, which is exactly when it
+      # matters: a half-finished destroy leaves a cluster billing while the
+      # command that was supposed to remove it has already exited non-zero.
+      - defer:
+          cmd: |
+            printf '\n  verifying nothing survived the destroy\n'
+            ./scripts/cost-check.sh
       - task: stack:run
         vars: { TG_CMD: 'destroy -auto-approve' }
-      - cmd: printf '\n  verifying nothing survived the destroy\n'
-      - ./scripts/cost-check.sh
 
   plan:
     desc: what would change in the environment
