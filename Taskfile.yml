@@ -105,10 +105,18 @@ tasks:
       # A destroy is slow in exactly the places that invite this: the database
       # security group sat in DependencyViolation for thirteen minutes looking
       # like a finished run.
+      #
+      # Matched by process name, not by command line. `pgrep -f terragrunt`
+      # also hits every shell whose script merely mentions the word -- a log
+      # tail, a wait loop, this guard's own subshell -- and a guard that cries
+      # wolf gets switched off, which is worse than not having one.
       - |
-        if pgrep -f 'terragrunt.*stack run' >/dev/null 2>&1; then
-          printf '\n  \033[1;31manother terragrunt stack run is already going\033[0m\n\n'
-          ps -o pid,etime,command -p $(pgrep -f 'terragrunt.*stack run' | tr '\n' ',' | sed 's/,$//') 2>/dev/null | sed 's/^/  /'
+        RUNNING=$(pgrep -x terragrunt; pgrep -x tofu)
+        RUNNING=$(printf '%s' "$RUNNING" | tr '\n' ' ')
+        if [ -n "$RUNNING" ]; then
+          printf '\n  \033[1;31manother terragrunt run is already going\033[0m\n\n'
+          ps -o pid,etime,command -p $(printf '%s' "$RUNNING" | tr ' ' ',' | sed 's/,$//') 2>/dev/null \
+            | cut -c1-110 | sed 's/^/  /'
           printf '\n  wait for it, or kill it -- do not run both.\n\n'
           exit 1
         fi
