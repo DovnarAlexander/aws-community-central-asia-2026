@@ -110,9 +110,13 @@ tasks:
       # also hits every shell whose script merely mentions the word -- a log
       # tail, a wait loop, this guard's own subshell -- and a guard that cries
       # wolf gets switched off, which is worse than not having one.
+      #
+      # Piped through tr for its exit status, not its output: task runs these
+      # with -e, and pgrep exits 1 when it matches nothing -- which is the
+      # normal case. Assigning that directly aborts the run with no message at
+      # all, and the guard then fails exactly the way it is meant to prevent.
       - |
-        RUNNING=$(pgrep -x terragrunt; pgrep -x tofu)
-        RUNNING=$(printf '%s' "$RUNNING" | tr '\n' ' ')
+        RUNNING=$({ pgrep -x terragrunt; pgrep -x tofu; } | tr '\n' ' ' | tr -s ' ' | sed 's/^ *//;s/ *$//')
         if [ -n "$RUNNING" ]; then
           printf '\n  \033[1;31manother terragrunt run is already going\033[0m\n\n'
           ps -o pid,etime,command -p $(printf '%s' "$RUNNING" | tr ' ' ',' | sed 's/,$//') 2>/dev/null \
