@@ -18,6 +18,8 @@ env:
 vars:
   PROJECT: probes-demo
   GUARDRAILS: infra/guardrails
+  STACK: infra/demo
+  TTL_HOURS: '{{.TTL_HOURS | default "8"}}'
 
 tasks:
   default:
@@ -25,6 +27,72 @@ tasks:
     silent: true
     cmds:
       - task --list
+
+  # ── the demo environment ───────────────────────────────────────────────────
+
+  up:
+    desc: bring up the whole environment — ~20 min, mostly the EKS control plane
+    silent: true
+    cmds:
+      - task: stack:run
+        vars: { TG_CMD: 'apply -auto-approve' }
+      - task: kubeconfig
+      - cmd: |
+          printf '\n  \033[1;32menvironment up\033[0m\n'
+          printf '  everything is tagged ExpiresAt=%s — the reaper takes it from there.\n' "$(PROBES_TTL_HOURS={{.TTL_HOURS}} ./scripts/expires-at.sh)"
+          printf '  \033[1mtask down\033[0m when you stop working. not later.\n\n'
+
+  down:
+    desc: destroy the environment, then prove it is gone
+    silent: true
+    cmds:
+      - task: stack:run
+        vars: { TG_CMD: 'destroy -auto-approve' }
+      - cmd: printf '\n  verifying nothing survived the destroy\n'
+      - ./scripts/cost-check.sh
+
+  plan:
+    desc: what would change in the environment
+    silent: true
+    cmds:
+      - task: stack:run
+        vars: { TG_CMD: 'plan' }
+
+  stack:run:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        # One instant shared by every unit in the run, so repeated plans do not
+        # churn the ExpiresAt tag.
+        export PROBES_EXPIRES_AT="$(PROBES_TTL_HOURS={{.TTL_HOURS}} ./scripts/expires-at.sh)"
+        cd {{.STACK}}
+        terragrunt stack run -- {{.TG_CMD}}
+
+  stack:generate:
+    desc: regenerate .terragrunt-stack from terragrunt.stack.hcl
+    dir: '{{.STACK}}'
+    cmds:
+      - terragrunt stack generate
+
+  kubeconfig:
+    desc: point kubectl at the demo cluster
+    silent: true
+    cmds:
+      - aws eks update-kubeconfig --name {{.PROJECT}} --alias {{.PROJECT}} >/dev/null
+      - cmd: printf '  \033[1;32m✓\033[0m kubectl now points at {{.PROJECT}}\n'
+
+  db:snapshot:
+    desc: snapshot the seeded database so later runs restore instead of re-seeding
+    silent: true
+    cmds:
+      - |
+        SNAP="{{.PROJECT}}-seeded-$(date -u +%Y%m%d-%H%M%S)"
+        aws rds create-db-snapshot \
+          --db-instance-identifier {{.PROJECT}} \
+          --db-snapshot-identifier "$SNAP" \
+          --query 'DBSnapshot.DBSnapshotIdentifier' --output text
+        printf '  restore from it by setting snapshot_identifier in infra/units/database\n'
 
   # ── cost control ───────────────────────────────────────────────────────────
 

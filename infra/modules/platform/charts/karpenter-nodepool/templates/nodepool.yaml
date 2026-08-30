@@ -1,0 +1,48 @@
+# Small, spot, and capped.
+#
+# Small instances mean more nodes appear for the same amount of work, which is
+# the thing the audience is watching. Spot draws on a separate 8 vCPU quota from
+# the on-demand system node group. The cpu limit matches that quota, so a
+# runaway scale-up in act 2 hits a ceiling we chose rather than one AWS chose.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: demo
+spec:
+  template:
+    metadata:
+      labels:
+        role: demo
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: demo
+
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+{{- range .Values.instanceTypes }}
+            - {{ . | quote }}
+{{- end }}
+
+      # A node that outlives the demo is a node nobody is watching. This is the
+      # innermost of the three cost guards.
+      expireAfter: 8h
+
+  limits:
+    cpu: {{ .Values.cpuLimit | quote }}
+
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    # Long enough that a node does not vanish mid-beat while the audience is
+    # still reading the panel, short enough that scale-down is visible before
+    # the act ends.
+    consolidateAfter: 2m

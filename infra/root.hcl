@@ -33,6 +33,14 @@ locals {
   # Optional gitignored overrides, so nobody has to export env vars to run a
   # plan. infra/local.hcl is a plain `locals { ... }` file.
   local_overrides = fileexists("${get_parent_terragrunt_dir()}/local.hcl") ? read_terragrunt_config("${get_parent_terragrunt_dir()}/local.hcl").locals : {}
+
+  # The tag that makes a resource reapable. `task up` exports PROBES_EXPIRES_AT
+  # so every unit in a run agrees on one instant; a bare terragrunt invocation
+  # gets eight hours from now. Units in the demo stack merge it into their tags;
+  # infra/guardrails deliberately does not.
+  expires_at = run_cmd("--terragrunt-quiet", "${get_repo_root()}/scripts/expires-at.sh")
+
+  cluster_name = local.project
 }
 
 # ── state ────────────────────────────────────────────────────────────────────
@@ -48,8 +56,10 @@ remote_state {
   }
 
   config = {
-    bucket       = local.state_bucket
-    key          = "${local.project}/${path_relative_to_include()}/tofu.tfstate"
+    bucket = local.state_bucket
+    # Units generated from a stack sit under .terragrunt-stack/; stripping it
+    # keeps state keys readable and stable if the stack layout is refactored.
+    key          = "${local.project}/${replace(path_relative_to_include(), "demo/.terragrunt-stack/", "")}/tofu.tfstate"
     region       = local.region
     encrypt      = true
     use_lockfile = true

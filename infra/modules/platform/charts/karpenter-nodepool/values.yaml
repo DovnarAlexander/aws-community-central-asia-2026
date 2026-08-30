@@ -1,0 +1,8 @@
+# Every value is supplied by the platform module; these are documentation, not
+# working defaults.
+clusterName: ""
+nodeRole: ""
+securityGroupId: ""
+instanceTypes: []
+cpuLimit: "8"
+tags: {}

@@ -1,0 +1,27 @@
+# What Karpenter launches: where, as whom, and tagged so the reaper can find it.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: demo
+spec:
+  # Graviton throughout, matching the system node group and the image the app
+  # is built for.
+  amiSelectorTerms:
+    - alias: al2023@latest
+
+  role: {{ .Values.nodeRole | quote }}
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: {{ .Values.clusterName | quote }}
+
+  # Selected by id rather than tag: the cluster's node security group already
+  # carries the rules that let a node reach the API server and RDS, and an id
+  # cannot silently match the wrong thing.
+  securityGroupSelectorTerms:
+    - id: {{ .Values.securityGroupId | quote }}
+
+  tags:
+{{- range $k, $v := .Values.tags }}
+    {{ $k }}: {{ $v | quote }}
+{{- end }}
