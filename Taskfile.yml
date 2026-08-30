@@ -220,7 +220,8 @@ tasks:
     desc: open the tmux layout and start the driver — the one command on stage
     interactive: true
     cmds:
-      - ./stage
+      # `task stage -- --fresh` rebuilds the layout from scratch.
+      - ./stage {{.CLI_ARGS}}
 
   reset:
     desc: tear the workloads down for a clean run, leaving the cluster up

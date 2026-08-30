@@ -9,6 +9,8 @@
 
 set -uo pipefail
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/aws-env.sh"
+
 PROJECT="${PROJECT_TAG:-probes-demo}"
 NS=demo
 REGION="${AWS_REGION:-eu-central-1}"

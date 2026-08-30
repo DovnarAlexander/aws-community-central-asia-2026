@@ -3,7 +3,7 @@
 What to run, what to say, how long each beat takes, and what to do when it does not
 go the way it went in rehearsal.
 
-The only command typed on stage is `./stage`. After that it is all "next": right arrow on
+The only command typed on stage is `task stage`. After that it is all "next": right arrow on
 the clicker, Enter, or space.
 
 ## The cast
@@ -54,7 +54,7 @@ Backstage, with the projector already mirrored:
 task up           # if the environment is not already running
 task preflight    # one screen of checks
 task dbshell      # the always-on psql the stat panel execs into
-./stage           # layout plus driver, waiting for the first press
+task stage        # layout plus driver, waiting for the first press
 ```
 
 `task preflight` should be green except possibly **karpenter capacity warm**, which is a
@@ -66,15 +66,15 @@ kubectl -n demo run warm --image=public.ecr.aws/docker/library/busybox:latest \
   --overrides='{"spec":{"nodeSelector":{"role":"demo"}}}' -- sleep 300
 ```
 
-Layout already on screen but no driver in it? `./stage` rebuilds it. Force with
-`./stage --fresh`.
+Layout already on screen but no driver in it? `task stage` rebuilds it. Force with
+`task stage -- --fresh`.
 
 ### Font and layout
 
 Terminal font large: **18pt minimum, 22–24pt is better**. Do not judge by eye — judge by
 the window size in characters, because the smaller the font, the more fit. Aim for
 **100–120 columns and 28–36 rows** for the whole screen; anything more is unreadable from
-the middle of the room. `./stage` measures this itself and warns before the talk starts.
+the middle of the room. `task stage` measures this itself and warns before the talk starts.
 
 The layout assumes exactly that size: 62% of the width to the driver, 5 rows to the stat
 panel, 8 to the load generator, everything else to the pods. In act 2 there are up to
@@ -208,6 +208,13 @@ afterwards.
 **Karpenter does not buy a node.** Check the spot quota first: `task preflight` reports node
 count, and the NodePool caps at 8 vCPU. If spot capacity is genuinely unavailable in both
 AZs, the beat still works — it is just slower and quieter.
+
+**The driver prints `cannot find the environment`, `IMAGE=unset`.** It is reporting missing
+AWS credentials, not missing infrastructure. Everything that talks to AWS now sources
+`lib/aws-env.sh`, which defaults the profile and region, and `task stage` passes both into
+the k9s and log panes explicitly — a tmux pane inherits its environment from the tmux
+*server*, which may predate the session. If it still happens, `aws sts get-caller-identity`
+in that pane says why in one line.
 
 **A beat has clearly failed.** `./demo 2.1` jumps straight to a beat; everything before it
 runs silently to restore state. `./demo --reset` tears the workloads down without touching

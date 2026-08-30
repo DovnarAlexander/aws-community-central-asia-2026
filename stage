@@ -16,6 +16,7 @@
 
 set -uo pipefail
 DEMO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DEMO_ROOT/lib/aws-env.sh"
 SESSION="${SESSION:-probes}"
 STATE="${DEMO_STATE:-/tmp/probes-demo}"
 mkdir -p "$STATE"
@@ -89,11 +90,19 @@ tmux select-pane -t "$SESSION:0.1" -T 'PODS'
 tmux select-pane -t "$SESSION:0.2" -T 'NODES / QUEUE / DB'
 tmux select-pane -t "$SESSION:0.3" -T 'LOAD'
 
+# Every pane gets the credentials spelled out. A pane inherits its environment
+# from the tmux *server*, which may have been started hours ago from a shell
+# that knew nothing about this project -- so k9s and kubectl, whose EKS auth
+# plugin needs the profile, cannot be trusted to inherit it. The two scripts
+# source lib/aws-env.sh themselves and would manage without this; the two
+# bare commands would not.
+AWSENV="AWS_PROFILE=$AWS_PROFILE AWS_REGION=$AWS_REGION"
+
 # No header, logo or breadcrumbs: the room needs the pod rows, and k9s spends a
 # third of the pane on its own furniture by default.
-tmux send-keys -t "$SESSION:0.1" "k9s --headless --logoless --crumbsless --readonly -n demo --command pods" C-m
-tmux send-keys -t "$SESSION:0.2" "$DEMO_ROOT/scripts/stat.sh" C-m
-tmux send-keys -t "$SESSION:0.3" "kubectl -n demo logs -f pod/loadgen --tail=8 2>/dev/null || echo 'no load running'" C-m
+tmux send-keys -t "$SESSION:0.1" "$AWSENV k9s --headless --logoless --crumbsless --readonly -n demo --command pods" C-m
+tmux send-keys -t "$SESSION:0.2" "$AWSENV $DEMO_ROOT/scripts/stat.sh" C-m
+tmux send-keys -t "$SESSION:0.3" "$AWSENV kubectl -n demo logs -f pod/loadgen --tail=8 2>/dev/null || echo 'no load running'" C-m
 tmux send-keys -t "$SESSION:0.0" "clear; ./demo" C-m
 
 tmux select-pane -t "$SESSION:0.0"

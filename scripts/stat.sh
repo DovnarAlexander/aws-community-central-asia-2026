@@ -7,6 +7,8 @@
 # panels the audience has to assemble that themselves.
 set -uo pipefail
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/aws-env.sh"
+
 NS=demo
 PROJECT="${PROJECT_TAG:-probes-demo}"
 INTERVAL="${INTERVAL:-2}"

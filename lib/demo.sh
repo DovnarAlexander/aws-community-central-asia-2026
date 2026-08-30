@@ -12,6 +12,8 @@
 set -uo pipefail
 
 DEMO_ROOT="${DEMO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=aws-env.sh
+. "$DEMO_ROOT/lib/aws-env.sh"
 DEMO_STATE="${DEMO_STATE:-/tmp/probes-demo}"
 NS=demo
 PROJECT="${PROJECT_TAG:-probes-demo}"

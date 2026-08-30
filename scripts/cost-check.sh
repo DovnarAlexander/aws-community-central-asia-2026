@@ -15,6 +15,8 @@
 
 set -uo pipefail
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/aws-env.sh"
+
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-central-1}}"
 PROJECT="${PROJECT_TAG:-probes-demo}"
 ALL_REGIONS=0
