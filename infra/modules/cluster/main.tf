@@ -89,6 +89,10 @@ module "eks" {
       instance_types = [var.system_instance_type]
       capacity_type  = "ON_DEMAND"
 
+      # The module defaults to the x86 AMI, which EKS rejects outright for a
+      # Graviton instance type rather than picking the obvious alternative.
+      ami_type = "AL2023_ARM_64_STANDARD"
+
       min_size     = 1
       max_size     = 2
       desired_size = 1
@@ -119,6 +123,11 @@ module "karpenter" {
 
   enable_spot_termination         = true
   create_pod_identity_association = true
+
+  # Karpenter's controller policy is larger than the 6144-byte ceiling AWS puts
+  # on a managed policy, so creating it fails outright. An inline role policy
+  # gets 10240 and fits.
+  enable_inline_policy = true
 
   node_iam_role_additional_policies = {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
