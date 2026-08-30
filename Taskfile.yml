@@ -100,9 +100,25 @@ tasks:
     silent: true
     cmds:
       - |
-        REPO=$(cd {{.STACK}}/.terragrunt-stack/registry && terragrunt output -raw repository_url)
+        # `terragrunt output -raw` pads its value with trailing spaces, which
+        # turn a tag into garbage the registry then reports as a missing
+        # repository. Strip before use.
+        REPO=$(cd {{.STACK}}/.terragrunt-stack/registry && terragrunt output -raw repository_url 2>/dev/null | tr -d '[:space:]')
+        [ -n "$REPO" ] || { printf '  \033[1;31m✗\033[0m no ECR repository — run task up\n'; exit 1; }
         REGISTRY=${REPO%%/*}
-        aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
+
+        # The registry token is written straight into an isolated docker config
+        # rather than passed through `docker login`. On macOS the login path
+        # delegates to the keychain, which needs a click to unlock and fails
+        # outright in any non-interactive run. The token lasts twelve hours and
+        # goes away with the directory.
+        DOCKER_CONFIG=$(mktemp -d)
+        export DOCKER_CONFIG
+        trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+        printf '{"auths":{"%s":{"auth":"%s"}}}' "$REGISTRY" \
+          "$(printf 'AWS:%s' "$(aws ecr get-login-password)" | base64 | tr -d '\n')" \
+          > "$DOCKER_CONFIG/config.json"
+
         docker build --platform linux/arm64 -t "$REPO:latest" app
         docker push "$REPO:latest"
         printf '\n  \033[1;32m✓\033[0m %s:latest\n\n' "$REPO"

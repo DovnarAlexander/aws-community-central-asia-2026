@@ -237,8 +237,10 @@ export QUEUE_URL="${QUEUE_URL:-}"
 export AWS_REGION="${AWS_REGION:-eu-central-1}"
 
 resolve_env() {
+  # `terragrunt output -raw` pads its value with trailing spaces, which turn a
+  # tag into something the registry reports as a missing repository. Strip.
   [ -n "$IMAGE" ] || IMAGE=$(cd "$DEMO_ROOT/infra/demo/.terragrunt-stack/registry" 2>/dev/null \
-    && terragrunt output -raw repository_url 2>/dev/null)
+    && terragrunt output -raw repository_url 2>/dev/null | tr -d '[:space:]')
   [ -n "$IMAGE" ] && IMAGE="${IMAGE}:latest"
 
   [ -n "$QUEUE_URL" ] || QUEUE_URL=$(aws sqs get-queue-url --queue-name "$PROJECT-work" \
