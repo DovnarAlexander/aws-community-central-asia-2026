@@ -143,6 +143,23 @@ tasks:
 
   # ── cost control ───────────────────────────────────────────────────────────
 
+  stage:
+    desc: open the tmux layout and start the driver — the one command on stage
+    interactive: true
+    cmds:
+      - ./stage
+
+  reset:
+    desc: tear the workloads down for a clean run, leaving the cluster up
+    cmds:
+      - ./demo --reset
+
+  dbshell:
+    desc: the always-on psql pod the stat panel and the driver exec into
+    cmds:
+      - kubectl apply -f k8s/dbshell.yaml
+      - kubectl -n demo rollout status deploy/dbshell --timeout=180s
+
   preflight:
     desc: one screen of checks — run this backstage before going on
     silent: true
