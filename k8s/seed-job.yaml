@@ -1,0 +1,42 @@
+# Loads the demo data into RDS. Runs once per environment; afterwards
+# `task db:snapshot` captures the result so later environments restore in
+# minutes instead of re-seeding.
+#
+# The SQL arrives as a ConfigMap built from db/seed.sql by `task seed`, so the
+# file on disk stays the single source of truth.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed
+  namespace: demo
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels: { app: seed }
+    spec:
+      serviceAccountName: demo
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: postgres:16-alpine
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              echo "seeding, this takes a couple of minutes"
+              psql "$DSN" -v ON_ERROR_STOP=1 -f /sql/seed.sql
+          env:
+            - name: DSN
+              valueFrom:
+                secretKeyRef:
+                  name: db
+                  key: dsn
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+      volumes:
+        - name: sql
+          configMap:
+            name: seed-sql

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+# The Pod Identity association created by the platform unit binds this exact
+# service account name to the role that may read SSM and talk to SQS. Renaming
+# it here silently removes the application's AWS access.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo
+  namespace: demo

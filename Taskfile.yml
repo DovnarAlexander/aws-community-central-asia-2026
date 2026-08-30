@@ -1,12 +1,11 @@
 # Everything that happens before, during and after the talk.
 #
-# Phase 0 only, so far: the guards that make it safe to create billable
-# infrastructure at all. `task cost:check` is the command to run at the end of
-# every session -- see docs/PLAN.md, "Three layers of guard".
+# `task cost:check` is the command to run at the end of every session -- see
+# docs/PLAN.md, "Three layers of guard". Nothing stays up between sessions.
 #
 # Infrastructure is Terragrunt: units in infra/<name>/terragrunt.hcl, the
 # Terraform they run in infra/modules/<name>/, shared configuration in
-# infra/root.hcl. The ephemeral demo environment arrives in phase 1 as
+# infra/root.hcl. The ephemeral demo environment is a stack:
 # infra/demo/terragrunt.stack.hcl.
 version: '3'
 
@@ -93,6 +92,54 @@ tasks:
           --db-snapshot-identifier "$SNAP" \
           --query 'DBSnapshot.DBSnapshotIdentifier' --output text
         printf '  restore from it by setting snapshot_identifier in infra/units/database\n'
+
+  # ── application ────────────────────────────────────────────────────────────
+
+  images:
+    desc: build the image and push it to ECR — arm64, to match the nodes
+    silent: true
+    cmds:
+      - |
+        REPO=$(cd {{.STACK}}/.terragrunt-stack/registry && terragrunt output -raw repository_url)
+        REGISTRY=${REPO%%/*}
+        aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
+        docker build --platform linux/arm64 -t "$REPO:latest" app
+        docker push "$REPO:latest"
+        printf '\n  \033[1;32m✓\033[0m %s:latest\n\n' "$REPO"
+
+  secrets:
+    desc: put the database DSN into the cluster as a secret
+    silent: true
+    cmds:
+      - kubectl apply -f k8s/00-namespace.yaml
+      - |
+        DSN=$(aws ssm get-parameter --name /{{.PROJECT}}/database/dsn --with-decryption \
+              --query 'Parameter.Value' --output text)
+        kubectl -n demo create secret generic db \
+          --from-literal=dsn="$DSN" \
+          --dry-run=client -o yaml | kubectl apply -f -
+        printf '  \033[1;32m✓\033[0m secret/db\n'
+
+  seed:
+    desc: load 2M rows into RDS — a couple of minutes, run once per environment
+    silent: true
+    cmds:
+      - task: secrets
+      - kubectl -n demo create configmap seed-sql --from-file=seed.sql=db/seed.sql --dry-run=client -o yaml | kubectl apply -f -
+      - kubectl -n demo delete job seed --ignore-not-found
+      - kubectl apply -f k8s/seed-job.yaml
+      - cmd: printf '\n  waiting for the seed job\n'
+      - kubectl -n demo wait --for=condition=complete job/seed --timeout=900s
+      - kubectl -n demo logs job/seed --tail=5
+
+  bootstrap:
+    desc: everything the night before — infra, image, data
+    cmds:
+      - task: up
+      - task: images
+      - task: seed
+      - cmd: printf '\n  \033[1;32mready\033[0m — consider task db:snapshot so the next run restores instead of re-seeding\n\n'
+        silent: true
 
   # ── cost control ───────────────────────────────────────────────────────────
 
