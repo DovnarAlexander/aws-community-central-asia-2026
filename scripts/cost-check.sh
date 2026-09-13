@@ -40,7 +40,8 @@ command -v aws >/dev/null 2>&1 || { echo "aws cli not found" >&2; exit 2; }
 command -v jq  >/dev/null 2>&1 || { echo "jq not found" >&2; exit 2; }
 
 if ! ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
-  printf '%s✗%s no AWS credentials. Set AWS_PROFILE, then retry.\n' "$C_BAD" "$C_OFF" >&2
+  printf '%s✗%s no AWS credentials. Export AWS_PROFILE (or any other credentials\n' "$C_BAD" "$C_OFF" >&2
+  printf '    the aws cli accepts), then retry.\n' >&2
   exit 2
 fi
 

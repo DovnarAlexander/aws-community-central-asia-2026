@@ -2,7 +2,7 @@
 # The stage driver.
 #
 # The contract with the speaker: the only key pressed is "next" -- right arrow
-# on a clicker, Enter, or space. Each beat prints a heading, then the exact
+# on a clicker, Enter, or space. Each step prints a heading, then the exact
 # command about to run, waits, runs it for real, and leaves the output on
 # screen. Nothing is faked and nothing is pre-recorded.
 #
@@ -17,7 +17,7 @@ NS=demo
 PROJECT="${PROJECT_TAG:-probes-demo}"
 mkdir -p "$DEMO_STATE"
 
-FAST=0 # set while fast-forwarding to a beat: run everything, wait for nothing
+FAST=0 # set while fast-forwarding to a step: run everything, wait for nothing
 
 # ── theme ────────────────────────────────────────────────────────────────────
 if [ -t 1 ]; then
@@ -74,11 +74,11 @@ _fit() {
   return 0
 }
 
-# ── the beat registry ────────────────────────────────────────────────────────
-BEAT_IDS=(); BEAT_TITLES=(); BEAT_FUNCS=()
+# ── the step registry ────────────────────────────────────────────────────────
+STEP_IDS=(); STEP_TITLES=(); STEP_FUNCS=()
 
-beat() { # beat ID TITLE FUNC
-  BEAT_IDS+=("$1"); BEAT_TITLES+=("$2"); BEAT_FUNCS+=("$3")
+step() { # step ID TITLE FUNC
+  STEP_IDS+=("$1"); STEP_TITLES+=("$2"); STEP_FUNCS+=("$3")
 }
 
 # ── what the speaker sees ────────────────────────────────────────────────────
@@ -90,11 +90,20 @@ say() {
   return 0
 }
 
-head_beat() { # head_beat ID TITLE
+head_step() { # head_step ID TITLE
   [ "$FAST" = 1 ] && return 0
+
+  # The one thing a deck gives a speaker that a terminal does not is a sense of
+  # where you are in it. tmux is already drawing a titled border around the
+  # driver pane, so the step goes there: always visible, costs no rows, and
+  # nobody has to look away from the terminal to find it.
+  [ -n "${TMUX:-}" ] && tmux select-pane -T "DEMO . step $1 . $2" 2>/dev/null
   local l first=1
   printf '\n%b' "$C_HEAD"; _rule '='
-  _fit 2 "BEAT $1 . $2" | while IFS= read -r l; do
+  # Just the number and the title. An incident has a timeline, not a cast list,
+  # and "1.1 . Timur ships a service" needs no noun in front of it -- the two
+  # spaces of indent below line the continuation up under the title.
+  _fit 2 "$1 . $2" | while IFS= read -r l; do
     if [ "$first" = 1 ]; then printf '  %s\n' "$l"; first=0; else printf '        %s\n' "$l"; fi
   done
   _rule '='; printf '%b\n' "$C_OFF"
@@ -120,7 +129,7 @@ badsay() {
 # A presenter clicker sends arrows or PageUp/PageDown, not Enter. An arrow
 # arrives as a three-character escape sequence (ESC [ C), so it has to be read
 # to the end: otherwise the tail spills into the next prompt and one press eats
-# two beats.
+# two steps.
 #
 # A bare Esc -- the "blank the screen" button on a clicker -- sends no tail, so
 # it can only be detected by timeout. bash 3.2, the system bash on macOS, cannot
@@ -163,11 +172,19 @@ read_key() {
 }
 
 # 0 -- carry on, 1 -- skip. `q` leaves the demo entirely.
-ask() {
+# ask [WHAT] -- block until the clicker is pressed, saying what the press does.
+#
+# "next" told the speaker that a press was expected and nothing about what it
+# would cause, which on stage is the difference between clicking confidently and
+# clicking to find out. Every caller now passes the consequence: click to apply,
+# click to start the load, click to start step 2.1. The default is deliberately
+# vague only where the next thing genuinely is just more talking.
+ask() { # ask [WHAT]
   [ "$FAST" = 1 ] && return 0
-  local key note=''
+  local what="${1:-click to go on}" key note=''
   while true; do
-    printf '\r\033[K  %b[->] next . [s] skip . [q] quit%s%b' "$C_DIM" "$note" "$C_OFF"
+    printf '\r\033[K  %b[->]%b %b%s%b %b. [s] skip . [q] quit%s%b' \
+      "$C_DIM" "$C_OFF" "$C_B" "$what" "$C_OFF" "$C_DIM" "$note" "$C_OFF"
     key=$(read_key) || continue
     case "$key" in
       next) printf '\r\033[K'; return 0 ;;
@@ -178,14 +195,18 @@ ask() {
   done
 }
 
-pause() {
+pause() { # pause [TEXT] [WHAT]
   [ "$FAST" = 1 ] && return 0
-  local l
-  if [ $# -gt 0 ]; then
+  local text="${1:-}" what="${2:-click to go on}" l
+  if [ -n "$text" ]; then
     printf '\n'
-    _fit 2 "$*" | while IFS= read -r l; do printf '  %b%s%b\n' "$C_B" "$l" "$C_OFF"; done
+    _fit 2 "$text" | while IFS= read -r l; do printf '  %b%s%b\n' "$C_B" "$l" "$C_OFF"; done
   fi
-  ask >/dev/null || true
+  # Not >/dev/null. That redirect is why this prompt was invisible: pause printed
+  # its line in bold, swallowed the one piece of text that said a press was
+  # expected, and left the speaker guessing whether the show was waiting for them
+  # or for the cluster.
+  ask "$what" || true
 }
 
 # run: show the command, wait for a press, then actually run it.
@@ -198,7 +219,18 @@ run() {
     if [ "$first" = 1 ]; then printf '  %b$ %s%b\n' "$C_CMD" "$l" "$C_OFF"; first=0
     else printf '    %b%s%b\n' "$C_CMD" "$l" "$C_OFF"; fi
   done
-  ask || return 0
+  # Derived rather than passed in: a label at the call site would drift from the
+  # command above it the first time somebody edited one and not the other.
+  local what='click to run it'
+  case "$cmd" in
+    *"apply -f"*)   what='click to apply it' ;;
+    *"set env"*)    what='click to change it' ;;
+    *"get events"*) what='click to see what kubelet said' ;;
+    *psql*)         what='click to ask the database' ;;
+    *logs*)         what='click to read the logs' ;;
+  esac
+
+  ask "$what" || return 0
   eval "$cmd" 2>&1 | sed 's/^/  /'
   local rc=${PIPESTATUS[0]}
   [ "$rc" != 0 ] && printf '  %b-> exit %s%b\n' "$C_WARN" "$rc" "$C_OFF"
@@ -212,7 +244,7 @@ runq() { eval "$*" >/dev/null 2>&1; return 0; }
 show() {
   local f="$1"
   printf '\n  %b%s%b\n' "$C_B" "$f" "$C_OFF"
-  ask || return 0
+  ask 'click to open it' || return 0
   if command -v bat >/dev/null 2>&1; then
     bat --style=plain --color=always --language=yaml "$DEMO_ROOT/$f"
   else
@@ -223,7 +255,7 @@ show() {
 # showdiff: the most useful slide in the whole talk -- what actually changed.
 showdiff() {
   printf '\n  %bwhat changes: %s -> %s%b\n' "$C_B" "$(basename "$1")" "$(basename "$2")" "$C_OFF"
-  ask || return 0
+  ask 'click to see the diff' || return 0
   git --no-pager diff --no-index --color=always --unified=2 \
     "$DEMO_ROOT/$1" "$DEMO_ROOT/$2" 2>/dev/null | tail -n +5 | sed 's/^/  /'
   return 0
@@ -283,7 +315,7 @@ restarts_total() { # restarts_total [SELECTOR]
   kubectl -n "$NS" get pods -l "$sel" --no-headers 2>/dev/null | awk '{s+=$4} END {print s+0}'
 }
 
-# The number act 2 is really about. Karpenter nodes are labelled role=demo, so
+# The number incident 2 is really about. Karpenter nodes are labelled role=demo, so
 # this counts machines bought for the demo and not the one running the system.
 node_count() {
   kubectl get nodes -l role=demo --no-headers 2>/dev/null | wc -l | tr -d ' '
@@ -291,7 +323,7 @@ node_count() {
 
 # Rough hourly spend on Karpenter capacity. Spot prices move, so this is an
 # order of magnitude rather than an invoice -- but seeing it climb while
-# throughput sits at zero is the point of the whole second act.
+# throughput sits at zero is the point of the whole second incident.
 node_burn() {
   local n; n=$(node_count)
   awk -v n="${n:-0}" 'BEGIN { printf "%.2f", n * 0.017 }'
@@ -325,7 +357,7 @@ watch_pods() { # watch_pods SECONDS [CAPTION] [SELECTOR]
     local left=$((secs - (SECONDS - start)))
     local body
     body="  ${C_DIM}${cap}${C_OFF}
-  ${C_DIM}ready ${C_OFF}${C_B}$(ready_count "$sel")${C_OFF}${C_DIM} . restarts ${C_OFF}${C_B}$(restarts_total "$sel")${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} . ${left}s . [->]${C_OFF}
+  ${C_DIM}ready ${C_OFF}${C_B}$(ready_count "$sel")${C_OFF}${C_DIM} . restarts ${C_OFF}${C_B}$(restarts_total "$sel")${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} . ${left}s . [->] click to move on${C_OFF}
 $(pods_table "$sel")"
     _redraw "$body"
     # Cut the wait short -- but only when a person is actually at the keyboard.
@@ -340,7 +372,7 @@ $(pods_table "$sel")"
   return 0
 }
 
-# watch_scale: act 2's panel. Queue depth and node count next to each other is
+# watch_scale: incident 2's panel. Queue depth and node count next to each other is
 # the whole argument -- one climbing while the other climbs, and throughput at
 # zero between them.
 watch_scale() { # watch_scale SECONDS [CAPTION]
@@ -353,7 +385,7 @@ watch_scale() { # watch_scale SECONDS [CAPTION]
     local left=$((secs - (SECONDS - start)))
     local body
     body="  ${C_DIM}${cap}${C_OFF}
-  ${C_DIM}queue ${C_OFF}${C_B}$(queue_depth)${C_OFF}${C_DIM} . workers ${C_OFF}${C_B}$(ready_count 'app=worker')${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} ~\$$(node_burn)/h . ${left}s . [->]${C_OFF}
+  ${C_DIM}queue ${C_OFF}${C_B}$(queue_depth)${C_OFF}${C_DIM} . workers ${C_OFF}${C_B}$(ready_count 'app=worker')${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} ~\$$(node_burn)/h . ${left}s . [->] click to move on${C_OFF}
 $(pods_table 'app=worker')"
     _redraw "$body"
     if [ -t 0 ]; then
@@ -386,6 +418,90 @@ wait_for() { # wait_for 'COMMAND' TIMEOUT 'CAPTION'
   return 1
 }
 
+# ── teaching while the cluster works ─────────────────────────────────────────
+# The waits in this demo are of two kinds and only one of them is the show.
+# RESTARTS climbing, the queue depth and the node count pulling apart -- that is
+# what the room came for, and nothing may be printed over it. The rest is dead
+# time: a node being bought, a rollout settling, a queue filling before KEDA has
+# looked at it. That is where the theory goes now, so the talk explains a probe
+# while the cluster is busy proving the point, instead of spending six minutes
+# on slides first and demonstrating afterwards.
+#
+#   teach 'HEADING' 'line' 'line' -- 'command that ends the wait' [TIMEOUT] [CAPTION]
+#
+# The card stays on screen while the command is polled underneath it, and the
+# right-hand panes keep running the whole time. That is the reason these are
+# cards in the terminal rather than slides in another window: the node counter
+# climbs next to the card explaining why it climbs, and one tmux window means
+# nothing to switch to and nothing to switch back from.
+teach()        { _teach card        "$@"; }  # teach HEADING LINE... -- 'CMD' [TIMEOUT] [CAP]
+teach_madina() { _teach madina_card "$@"; }  # the same, signed
+
+# notes: the card with no wait attached and no press to continue, for the steps
+# that do their own waiting afterwards. The rule it exists to keep is that the
+# text is on screen from the first second of a wait rather than after it -- the
+# speaker should be reading the card aloud while the cluster works, not watching
+# a countdown in silence and explaining once it has finished.
+notes()        { card        "$@"; }
+notes_madina() { madina_card "$@"; }
+
+# settle: the wait under a step that is talking rather than showing a card --
+# an argument belongs in a voice, and a card left up through it would be two
+# things asking for the same attention.
+settle() { _wait_keyed "$@"; }
+
+_teach() { # _teach RENDERER HEADING LINE... -- 'WAIT_COMMAND' [TIMEOUT] [CAPTION]
+  local render="$1"; shift
+  local heading="$1"; shift
+  local body=()
+  while [ $# -gt 0 ] && [ "$1" != '--' ]; do body[${#body[@]}]="$1"; shift; done
+  [ "${1:-}" = '--' ] && shift
+  local cmd="${1:-}" timeout="${2:-180}" cap="${3:-waiting}"
+
+  if [ "$FAST" = 1 ]; then
+    [ -n "$cmd" ] && wait_for "$cmd" "$timeout" "$cap"
+    return 0
+  fi
+
+  if [ ${#body[@]} -gt 0 ]; then "$render" "$heading" "${body[@]}"; else "$render" "$heading"; fi
+
+  [ -n "$cmd" ] || { ask 'click when you are done with this' || true; return 0; }
+  _wait_keyed "$cmd" "$timeout" "$cap"
+}
+
+# wait_for, except that a press also ends it. Under a card the speaker is
+# talking, not watching a spinner, and Karpenter takes anywhere between twenty
+# seconds and a minute -- so a card is written with the line that matters first
+# and the rest as depth to drop when the node arrives early.
+#
+# Pressing next here means "I am done talking", not "the cluster is ready". It
+# is the same contract as `skip` on any other prompt: the speaker's call.
+_wait_keyed() { # _wait_keyed 'COMMAND' TIMEOUT 'CAPTION'
+  local cmd="$1" timeout="${2:-180}" cap="${3:-waiting}"
+  local start=$SECONDS spin='|/-\' i=0
+  while [ $((SECONDS - start)) -lt "$timeout" ]; do
+    if eval "$cmd" >/dev/null 2>&1; then
+      printf '\r\033[K  %b+ %s (%ss)%b\n' "$C_OK" "$cap" "$((SECONDS - start))" "$C_OFF"
+      return 0
+    fi
+    i=$(((i + 1) % 4))
+    printf '\r\033[K  %b%s %s (%ss) . [->] click when you are done talking%b' \
+      "$C_DIM" "${spin:$i:1}" "$cap" "$((SECONDS - start))" "$C_OFF"
+    # Under `task smoke` stdin is a pipe: poll on a plain sleep, or the wait
+    # ends on the first line of feed and the assertions run too early.
+    if [ -t 0 ]; then
+      case "$(read_key 1)" in
+        next|skip) printf '\r\033[K'; return 0 ;;
+        quit) printf '\r\033[K\n'; exit 0 ;;
+      esac
+    else
+      sleep 1
+    fi
+  done
+  printf '\r\033[K  %bx gave up: %s%b\n' "$C_WARN" "$cap" "$C_OFF"
+  return 1
+}
+
 # ── load ─────────────────────────────────────────────────────────────────────
 # The generator runs in the cluster, so the summary comes back through
 # `kubectl logs` rather than from a file on the laptop.
@@ -410,11 +526,43 @@ load_start() { # load_start MODE RPS LABEL [DURATION] [WORKERS]
 }
 
 load_stop_quiet() {
-  # Capture the summary before deleting the pod, or it goes with it.
+  # The generator prints its SUMMARY when it stops, not while it runs -- so ask
+  # it to stop, then read. Reading first only ever worked for the incident 2 loads,
+  # which carry a -duration and therefore stop on their own; incident 1 runs until
+  # signalled, so its summary was collected before it existed and the before and
+  # after table had nothing to compare for the entire life of this demo.
+  #
+  # Deleting the pod is the signal. Logs stay readable while it terminates, and
+  # that is the window this loop reads in.
   if [ -f "$DEMO_STATE/load.label" ]; then
-    local label; label=$(cat "$DEMO_STATE/load.label")
-    kubectl -n "$NS" logs loadgen 2>/dev/null \
-      | grep '^SUMMARY ' | tail -1 | cut -d' ' -f2- > "$DEMO_STATE/$label.json" 2>/dev/null
+    local label summary
+    label=$(cat "$DEMO_STATE/load.label")
+
+    # Read before deleting. A generator that carried a -duration has already
+    # stopped, printed its summary and is sitting there Completed -- deleting it
+    # first would take the log away with it.
+    summary=$(kubectl -n "$NS" logs loadgen 2>/dev/null | grep '^SUMMARY ' | tail -1)
+
+    if [ -z "$summary" ]; then
+      # Still running, which means the step was cut short -- every load in the
+      # show carries a -duration chosen to end inside its own window. Deleting
+      # the pod is the only signal available (the image is distroless: no shell,
+      # nothing to exec a kill into), and it is a poor one: the container prints
+      # the summary and exits, and the pod object follows it within about a
+      # second. So poll without sleeping, and give up the moment kubectl says
+      # the pod is gone rather than spending the whole deadline on a corpse.
+      local out rc deadline
+      kubectl -n "$NS" delete pod loadgen --ignore-not-found --grace-period=15 --wait=false >/dev/null 2>&1
+      deadline=$((SECONDS + 10))
+      while [ "$SECONDS" -lt "$deadline" ]; do
+        out=$(kubectl -n "$NS" logs loadgen 2>/dev/null); rc=$?
+        summary=$(printf '%s\n' "$out" | grep '^SUMMARY ' | tail -1)
+        [ -n "$summary" ] && break
+        [ "$rc" -ne 0 ] && break
+      done
+    fi
+
+    printf '%s' "${summary#SUMMARY }" > "$DEMO_STATE/$label.json"
     rm -f "$DEMO_STATE/load.label"
   fi
   kubectl -n "$NS" delete pod loadgen --ignore-not-found --wait=false >/dev/null 2>&1
@@ -464,8 +612,22 @@ compare() { # compare LABEL_BEFORE LABEL_AFTER HEADING
   printf '%b' "$C_B"; _rule '-'; printf '%b\n' "$C_OFF"
 }
 
-mark_restarts() { restarts_total > "$DEMO_STATE/$1.restarts"; }
+# The selector matters: incident 1 is about the api and must not count a worker left
+# over from a previous run, which is how "the fixed probe does not restart pods"
+# ends up failing on somebody else's restarts.
+mark_restarts() { # mark_restarts LABEL [SELECTOR]
+  restarts_total "${2:-app in (svc,worker)}" > "$DEMO_STATE/$1.restarts"
+}
 mark_nodes()    { node_count     > "$DEMO_STATE/$1.nodes"; }
+
+# The number incident 2 turns on: before the fix most workers are up and NotReady,
+# after it every one of them serves. Node count cannot carry that proof --
+# Karpenter's consolidateAfter is 2m and the step is shorter than that.
+mark_workers() { # mark_workers LABEL
+  local rc; rc=$(ready_count 'app=worker')
+  printf '%s' "${rc%%/*}" > "$DEMO_STATE/$1.workers_ready"
+  printf '%s' "${rc##*/}" > "$DEMO_STATE/$1.workers_total"
+}
 
 # ── the database panel ───────────────────────────────────────────────────────
 # A long-lived psql pod, so a query on stage is an exec rather than a cold pod
@@ -487,27 +649,65 @@ demo_reset() {
   load_stop_quiet
   kubectl -n "$NS" delete deploy svc worker --ignore-not-found --wait=true >/dev/null 2>&1
   kubectl -n "$NS" delete scaledobject worker --ignore-not-found >/dev/null 2>&1
-  # Leftover messages would have KEDA scaling before act 2 has started.
-  [ -n "$QUEUE_URL" ] && aws sqs purge-queue --queue-url "$QUEUE_URL" >/dev/null 2>&1
-  rm -f "$DEMO_STATE"/*.json "$DEMO_STATE"/*.restarts "$DEMO_STATE"/*.nodes
+
+  # Leftover messages would have KEDA scaling before incident 2 has started -- an incident
+  # that opens on a queue which is already deep is a different incident. A purge is
+  # asynchronous, AWS allows one a minute and it can take a minute to finish, so
+  # this waits for the depth to actually reach zero instead of assuming it.
+  if [ -n "$QUEUE_URL" ]; then
+    local dlq deadline
+    aws sqs purge-queue --queue-url "$QUEUE_URL" >/dev/null 2>&1
+
+    # The dead letter queue too: nothing reads it during the demo, but a pile of
+    # yesterday's failures in there is a confusing thing to find while debugging
+    # why today's messages are not being processed.
+    dlq=$(aws sqs get-queue-url --queue-name "$PROJECT-dlq" --query QueueUrl --output text 2>/dev/null)
+    case "$dlq" in ''|None) : ;; *) aws sqs purge-queue --queue-url "$dlq" >/dev/null 2>&1 ;; esac
+
+    deadline=$((SECONDS + 90))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+      case "$(queue_depth)" in '0/0'|'') break ;; esac
+      sleep 3
+    done
+  fi
+
+  # Everything the run wrote, by exclusion rather than by list. The list came
+  # first and went stale the moment a new kind of marker was added: after the
+  # worker counts arrived, a reset left last run's numbers sitting there for the
+  # next run's assertions to read. Excluding the two files that are not markers
+  # cannot go stale in the same way.
+  find "$DEMO_STATE" -maxdepth 1 -type f \
+    ! -name 'driver.pid' ! -name 'smoke.log' -delete 2>/dev/null
+
+  # The other half of "the state the show starts from", and the half this used
+  # to leave to luck: not only the absence of the last run, but the presence of
+  # everything the steps assume. All three applies are no-ops when the objects
+  # are already there, which is what makes this safe to run from any state --
+  # after a smoke, on a half-built cluster, or twice in a row.
+  #
+  # The db secret is not here because it comes out of SSM rather than a file;
+  # `task reset` runs `task secrets` in front of this for that one.
+  kubectl apply -f "$DEMO_ROOT/k8s/00-namespace.yaml" -f "$DEMO_ROOT/k8s/00-service.yaml" >/dev/null 2>&1
+  kubectl apply -f "$DEMO_ROOT/k8s/dbshell.yaml" >/dev/null 2>&1
+  kubectl -n "$NS" rollout status deploy/dbshell --timeout=60s >/dev/null 2>&1
 }
 
 # ── entry ────────────────────────────────────────────────────────────────────
 demo_list() {
   local i=0
-  printf '\n%b  beats%b\n\n' "$C_B" "$C_OFF"
-  while [ $i -lt ${#BEAT_IDS[@]} ]; do
-    printf '  %b%-6s%b %s\n' "$C_CMD" "${BEAT_IDS[$i]}" "$C_OFF" "${BEAT_TITLES[$i]}"
+  printf '\n%b  the timeline%b\n\n' "$C_B" "$C_OFF"
+  while [ $i -lt ${#STEP_IDS[@]} ]; do
+    printf '  %b%-6s%b %s\n' "$C_CMD" "${STEP_IDS[$i]}" "$C_OFF" "${STEP_TITLES[$i]}"
     i=$((i + 1))
   done
-  printf '\n  %b./demo 2.1%b -- start at beat 2.1 (earlier ones run silently)\n' "$C_CMD" "$C_OFF"
+  printf '\n  %b./demo 2.1%b -- start at step 2.1 (earlier ones run silently)\n' "$C_CMD" "$C_OFF"
   printf '  %b./demo --reset%b -- tear the workloads down and start over\n\n' "$C_CMD" "$C_OFF"
 }
 
 _index_of() {
   local want="$1" i=0
-  while [ $i -lt ${#BEAT_IDS[@]} ]; do
-    [ "${BEAT_IDS[$i]}" = "$want" ] && { echo "$i"; return 0; }
+  while [ $i -lt ${#STEP_IDS[@]} ]; do
+    [ "${STEP_IDS[$i]}" = "$want" ] && { echo "$i"; return 0; }
     i=$((i + 1))
   done
   return 1
@@ -520,14 +720,45 @@ demo_main() {
 
   case "${1:-}" in
     -l|--list) demo_list; return 0 ;;
-    --reset) demo_reset; printf '  %bstate reset%b\n' "$C_OK" "$C_OFF"; return 0 ;;
+    --reset) demo_reset
+             printf '  %b+ workloads gone, queues empty, marks cleared, dbshell up%b\n' "$C_OK" "$C_OFF"
+             return 0 ;;
   esac
+
+  # Checked here rather than left to the first apply: a missing envsubst makes
+  # every manifest resolve to an empty stream, and the driver would otherwise
+  # run the whole show against a namespace in which nothing was ever created.
+  if ! command -v envsubst >/dev/null 2>&1; then
+    printf '\n  %bx envsubst not found%b\n' "$C_BAD" "$C_OFF"
+    printf '    every manifest on stage is applied through it\n'
+    printf '    %bbrew install gettext%b\n\n' "$C_B" "$C_OFF"
+    return 1
+  fi
 
   if [ -z "$IMAGE" ] || [ -z "$QUEUE_URL" ]; then
     printf '\n  %bx cannot find the environment%b\n' "$C_BAD" "$C_OFF"
     printf '    IMAGE=%s\n    QUEUE_URL=%s\n' "${IMAGE:-unset}" "${QUEUE_URL:-unset}"
     printf '    run %btask preflight%b\n\n' "$C_B" "$C_OFF"
     return 1
+  fi
+
+  # Starting from the top against a cluster that still carries a previous run is
+  # the quiet way to ruin a rehearsal: incident 1 plays with incident 2's workers already
+  # running and KEDA scaling behind it, and incident 2 opens with the scale-up it
+  # exists to demonstrate already finished. A `task smoke` the night before
+  # leaves exactly that. Jumping to a step is exempt -- rebuilding the state of
+  # the steps before it is the entire point of doing so.
+  if [ -z "${1:-}" ]; then
+    local leftovers=''
+    kubectl -n "$NS" get deploy svc          >/dev/null 2>&1 && leftovers="$leftovers deploy/svc"
+    kubectl -n "$NS" get deploy worker       >/dev/null 2>&1 && leftovers="$leftovers deploy/worker"
+    kubectl -n "$NS" get scaledobject worker >/dev/null 2>&1 && leftovers="$leftovers scaledobject/worker"
+    if [ -n "$leftovers" ]; then
+      printf '\n  %bx the cluster still has a previous run on it%b\n' "$C_BAD" "$C_OFF"
+      printf '    %s\n' "$leftovers"
+      printf '    %btask reset%b, then start again\n\n' "$C_B" "$C_OFF"
+      return 1
+    fi
   fi
 
   _tty_quiet
@@ -538,24 +769,24 @@ demo_main() {
 
   local start=0
   if [ -n "${1:-}" ]; then
-    start=$(_index_of "$1") || { printf '%bno beat %s%b\n' "$C_BAD" "$1" "$C_OFF"; demo_list; return 1; }
+    start=$(_index_of "$1") || { printf '%bno step %s%b\n' "$C_BAD" "$1" "$C_OFF"; demo_list; return 1; }
   fi
 
   if [ "$start" -gt 0 ]; then
-    printf '\n  %bfast-forwarding to beat %s...%b\n' "$C_DIM" "$1" "$C_OFF"
+    printf '\n  %bfast-forwarding to step %s...%b\n' "$C_DIM" "$1" "$C_OFF"
     FAST=1
     local j=0
-    while [ $j -lt "$start" ]; do "${BEAT_FUNCS[$j]}"; j=$((j + 1)); done
+    while [ $j -lt "$start" ]; do "${STEP_FUNCS[$j]}"; j=$((j + 1)); done
     FAST=0
     printf '  %b+ state restored%b\n' "$C_OK" "$C_OFF"
   fi
 
   local i="$start"
-  while [ $i -lt ${#BEAT_IDS[@]} ]; do
-    head_beat "${BEAT_IDS[$i]}" "${BEAT_TITLES[$i]}"
-    "${BEAT_FUNCS[$i]}"
+  while [ $i -lt ${#STEP_IDS[@]} ]; do
+    head_step "${STEP_IDS[$i]}" "${STEP_TITLES[$i]}"
+    "${STEP_FUNCS[$i]}"
     i=$((i + 1))
-    [ $i -lt ${#BEAT_IDS[@]} ] && pause "-> beat ${BEAT_IDS[$i]}: ${BEAT_TITLES[$i]}"
+    [ $i -lt ${#STEP_IDS[@]} ] && pause "-> step ${STEP_IDS[$i]}: ${STEP_TITLES[$i]}" "click to start step ${STEP_IDS[$i]}"
   done
 
   load_stop_quiet

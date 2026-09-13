@@ -1,9 +1,15 @@
-# Act 1, beat 3 -- Madina read the documentation.
+# Incident 1, step 1.2, second half -- Madina read the documentation.
 #
 # startupProbe gives the slow start its own budget: 60 checks at 2 seconds is
 # two minutes of patience, and while it runs, liveness is not consulted at all.
 # The liveness numbers can then be about steady-state health, which is the only
 # thing they were ever meant to be about.
+#
+# WARMUP_SECONDS is 50 rather than 15 on purpose, and it has to match the value
+# the previous step broke the service with: the point of this step is that the
+# same slow start that was being punished a minute ago is now simply waited for.
+# It used to say 30 here while the script claimed 60 out loud, which made the
+# apply quietly undo the breakage the step was built on.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,7 +37,7 @@ spec:
             - containerPort: 8080
           env:
             - name: WARMUP_SECONDS
-              value: "30"
+              value: "50"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE

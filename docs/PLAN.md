@@ -9,12 +9,12 @@ turn a misconfigured probe into an EC2 bill.
 | Question | Decision |
 | --- | --- |
 | Platform | EKS + Karpenter + KEDA, RDS PostgreSQL, SQS |
-| Slot | **35 minutes** — which forces two acts, not three (see *Act structure*) |
+| Slot | **35 minutes** — which forces two incidents, not three (see *Incident structure*) |
 | Deck / terminal / docs language | English throughout |
 | What runs live on stage | Infra provisioned the day before; only deploys, probes, pod scale, node scale and the connection wall happen live |
 | Deck theme | `naviteq-slidev` |
 | Cast | Timur (backend), Ruslan (DevOps), Madina (intern) |
-| AWS account | `250295255927` / `just-devops`, profile `personal`, region `eu-central-1` |
+| AWS account | `250295255927` / `just-devops`, region `eu-central-1`. Credentials come from the standard AWS chain — export `AWS_PROFILE` (or anything else the CLI accepts) before running `task`; nothing pins a profile name. `infra/root.hcl` pins the account id, so wrong credentials fail the apply |
 | IaC | **Terragrunt v1.1.3** — `root.hcl`, units in `infra/<name>/`, modules in `infra/modules/<name>/`, the ephemeral environment composed as a `terragrunt.stack.hcl`. Backend and provider generated, `errors`/`retry` for transient AWS failures. Runs OpenTofu |
 | Terraform state | Existing bucket `250295255927-eu-central-1-terraform-states`, S3 native locking (no DynamoDB — `use_lockfile`) |
 
@@ -64,7 +64,7 @@ What gets **ported and adapted**:
 | --- | --- | --- |
 | `demo`, `lib/demo.sh` | same | Translated; new helpers for nodes, queue depth, KEDA |
 | `lib/story.sh` | same | Translated, recast; KEDA and Karpenter replace HPA as the amplifier. Name column widens from 8 to 9 characters — "Karpenter" does not fit the old one |
-| `steps/act1.sh`, `act2.sh` | same | Translated, retargeted, resequenced for 35 minutes |
+| `steps/incident1.sh`, `incident2.sh` | same | Translated, retargeted, resequenced for 35 minutes |
 | `manifests/` | `k8s/` | DSN from a secret, no in-cluster Postgres, resources sized for real nodes |
 | `stage` | same | New panel layout around nodes and queue depth |
 | `tools/loadgen/` | same | Gains an SQS enqueue mode |
@@ -119,13 +119,13 @@ spot quota rather than competing with the system node group, and small nodes mea
 nodes appear when it scales — which is exactly the thing the audience needs to see.
 
 **Non-burstable RDS.** `db.m6g.large` costs more per hour than a `t4g`, but burstable CPU
-credits run out mid-demo and the act-2 cascade stops being reproducible. At roughly $6
+credits run out mid-demo and the incident-2 cascade stops being reproducible. At roughly $6
 across the whole project, determinism is worth more than the saving.
 
 Two workloads, one image. **api** is the existing HTTP service — `/work`, `/healthz`,
 `/ready`, `/startupz` — plus a new `/enqueue` that pushes messages onto SQS. **worker**
 long-polls the queue, does the same DB aggregation per message and deletes on success; this
-is what KEDA scales and what act 2 breaks. Every failure mode stays an environment variable,
+is what KEDA scales and what incident 2 breaks. Every failure mode stays an environment variable,
 so one image plays both the broken and the fixed role — the same contract as the original.
 
 ## Cost
@@ -173,36 +173,101 @@ the sweep output into the conversation. Infrastructure is never left up between 
 "because we'll need it again in an hour" — bringing it back costs about 15 minutes and
 about 10 cents.
 
-## Act structure
+## Incident structure
 
 35 minutes is the constraint that reshapes the show. The original was 29 minutes for two
-acts, and the plan had been to add a third for the queue and the autoscalers. That does not
+incidents, and the plan had been to add a third for the queue and the autoscalers. That does not
 fit — but the fix improves the talk rather than compromising it.
 
-The old act 2 (readiness tied to the database) and the planned act 3 (queue, KEDA,
-Karpenter) share one root cause: **a probe that asks about a shared dependency**. Splitting
-them across two acts tells the same lesson twice. Merged, there is one cascade that starts
+The original talk's second act (readiness tied to the database) and the third one that was
+planned for this port (queue, KEDA, Karpenter) share one root cause: **a probe that asks
+about a shared dependency**. Splitting them in two tells the same lesson twice. Merged, there is one cascade that starts
 in the database and gets amplified into an EC2 bill — a single escalating arc instead of
 two similar ones.
 
 | | | Budget |
 | --- | --- | --- |
-| Slides | Theory, cut hard from the original nine | 6 min |
-| Act 0 | Cast | 45 s |
-| Act 1 | **The probe that kills a healthy pod** | 9 min |
-| Act 2 | **The probe that buys EC2 instances** | 13 min |
-| Slides | Mental model, checklist, close | 3 min |
+| Opening | Who is on call, and one card: what this talk is about | 1.5 min |
+| Incident 1 | **The probe that kills a healthy pod** | 16.5 min |
+| Incident 2 | **The probe that buys EC2 instances** | 16 min |
+| Close | Postmortem, the takeaway card, the QR | 2 min |
 | Buffer | Non-negotiable for a live cloud demo | 3 min |
 
-**Act 1 — the probe that kills a healthy pod.** The original five beats, compressed.
-Naive liveness kills a slow-starting service; Ruslan raises `initialDelaySeconds` and it
-breaks again a week later; Madina brings `startupProbe`; then under real load the same
-liveness kills three healthy replicas because it measures latency, not life. One new beat
-comes free: the first pod sits `Pending` while Karpenter buys a node — about 50 seconds of
-honest waiting that the audience enjoys, and it establishes the node panel before act 2
-needs it.
+That adds up to 39, and the model says 39.5 to 43 once the cast, the close and the buffer
+are counted — so the show is still three to seven minutes long. Before the
+restructuring it modelled at 44 to 51, so moving the theory into the waits bought six to
+nine minutes, which is most of the gap and not all of it.
 
-**Act 2 — the probe that buys EC2 instances.** A readiness probe that "honestly checks the
+Both figures are modelled rather than measured. The countdowns are 9.5 minutes and `task
+smoke` measures those; the rest assumes five seconds per spoken line across eighty-eight
+lines, which is worth ±1.5 minutes on its own. The next lever is therefore a stopwatch, not
+another edit. If the model holds, the two candidates are dialogue — incident 1 carries fifty
+spoken lines, incident 2 thirty-eight — and folding 2.2 into 2.3, which are one continuous event
+told as two steps.
+
+### Where the theory went
+
+The six minutes of slides at the front are gone, and not by being cut: they are distributed
+into the demo as `teach` cards, each one placed in a wait the demo was going to spend
+anyway. That decision followed from measuring the thing honestly. Modelled step by step,
+the show was running 44 to 51 minutes against a 35-minute slot, and roughly sixteen of
+those minutes were countdowns — a rollout settling, Karpenter buying a node, a queue
+filling before KEDA has looked at it. Moving theory into that dead time is the only lever
+that buys minutes without dropping a topic.
+
+Two kinds of wait, and only one of them is available:
+
+- **Dead** — nothing to look at yet. Rollouts, the node purchase, the first half-minute of
+  the queue fill. Four to five minutes in total, and this is where every card goes.
+- **The payoff** — `RESTARTS` climbing, queue depth and node count pulling apart. Nothing
+  is ever printed over these. They are what the room came for.
+
+The cards are printed in the driver pane rather than shown in a deck, because `./stage` is
+one tmux window: the three right-hand panes keep running underneath a card, so the node
+counter climbs next to the card explaining why it climbs. Leaving tmux for Slidev would
+stop all three, and there would be something to switch back from.
+
+There are no slides left at all, and the closing checklist is the reason there are none. The
+room does not read a checklist off a screen — it photographs one. So the show ends on the
+thing worth photographing: a card with a link, and a QR beside it (`task qr`). The link
+carries `docs/CHECKLIST.md` and the manifests that produced every failure they just watched,
+which is a better takeaway than a slide of bullets and costs no switch. One card stays at
+the front, in the titles: who is asking the questions, and what the three answers do.
+Without it Timur's "initialDelay 5, period 5, timeout 1, three misses" is noise to anyone
+who has not wired a probe before.
+
+The teaching cards are **signed**. Nearly all of them are Madina's, printed under her name
+and in her colour, because an unattributed card is the author interrupting the story, while
+a signed one is a thing a character produced — the same content, without the seam. Her part
+was written for it: the intern whose whole role is having read the documentation. The two
+cards that are arguments rather than references are spoken instead, because a claim belongs
+in a voice and a card left up through it would be two things competing for the same
+attention. The KEDA card stays unsigned: it is about the machine, not about anybody.
+
+The best of them is in 2.1. Madina says "Nothing. It passed review." — and her note appears
+anyway, carrying the objection she swallowed, which is the objection the next twelve minutes
+are about.
+
+The cost of the decision is that the talk and the cluster are now one artefact: if AWS is
+having a bad afternoon, the theory goes down with the demo. The recorded fallback in phase
+8 stops being a nicety.
+
+**Incident 1 — the probe that kills a healthy pod.** Four steps, not five: Ruslan raising the
+number and Madina producing the `startupProbe` are a question and its answer, and telling
+them as separate steps cost an extra rollout, an extra step header and about three minutes
+for one lesson. The incident-1 arithmetic was also halved — 25 seconds of patience against a
+15-second start rather than 40 against 30 — because the failure is pure arithmetic and
+arithmetic is as true at 25 seconds as at 40.
+
+The story is unchanged: naive liveness kills a slow-starting service; Ruslan raises
+`initialDelaySeconds` and it breaks again a week later; Madina brings `startupProbe`; then
+under real load the same liveness kills three healthy replicas because it measures latency,
+not life. One step comes free from AWS: the first pod sits `Pending` while Karpenter buys a
+node. That wait used to be filler the audience enjoyed; it now carries the card that
+explains the four probe numbers, immediately before the probe uses them to kill something,
+and it still establishes the node panel before incident 2 needs it.
+
+**Incident 2 — the probe that buys EC2 instances.** A readiness probe that "honestly checks the
 database" passes review at three replicas. Then the queue fills: KEDA scales workers from
 zero, Karpenter provisions nodes live. The probe cost multiplies by replica count, RDS hits
 the pinned `max_connections`, every replica goes NotReady, workers stop consuming, queue
@@ -211,7 +276,7 @@ climbing while throughput sits at zero. The fix decouples the probes, caps
 `maxReplicaCount`, and budgets the pool against `max_connections`. The queue drains, the
 nodes scale back down.
 
-Both acts stay independently runnable, so the RUNBOOK can carry a short cut if the slot
+Both incidents stay independently runnable, so the RUNBOOK can carry a short cut if the slot
 shrinks on the day.
 
 ## Why each failure still reproduces
@@ -228,7 +293,7 @@ the equivalent levers are:
 | Queue death spiral | KEDA's `queueLength` target and worker pool size chosen so the loop closes before the audience loses interest |
 
 All of these numbers need re-measuring against real RDS: the 200 ms full scan that made the
-old act 2 work on a laptop will land somewhere else on an m-class instance.
+old incident 2 work on a laptop will land somewhere else on an m-class instance.
 
 The 8 vCPU quota is a design input, not an obstacle. Demo pods request 100m each, so 16 API
 replicas need 1.6 vCPU — the constraint is node *count*, not capacity, and small nodes make
@@ -246,7 +311,7 @@ app/cmd/api/          HTTP service
 app/cmd/worker/       SQS consumer
 app/internal/         shared: db, probes, sqs
 db/seed.sql           run as a Job against RDS, then snapshotted
-k8s/act1/, k8s/act2/  one full manifest per step; the driver diffs between them
+k8s/incident1/, k8s/incident2/  one full manifest per step; the driver diffs between them
 k8s/platform/         Karpenter NodePool, EC2NodeClass, KEDA ScaledObject
 tools/loadgen/        HTTP load and SQS enqueue modes
 demo, stage, lib/     driver, tmux layout, cast — ported and translated
@@ -290,7 +355,7 @@ answered from inside the VPC with `max_connections` pinned at 60, the seed job l
 2,000,000 rows, and Karpenter provisioned a node on demand.
 
 **Karpenter is faster than planned.** Pending to Ready measured at about **20 seconds** on
-spot `t4g` capacity in `eu-central-1`, not the 40–60 assumed. Act 1's waiting beat was
+spot `t4g` capacity in `eu-central-1`, not the 40–60 assumed. Incident 1's waiting step was
 shortened accordingly.
 
 Three things only real AWS could have told us, all now fixed in the code:
@@ -317,19 +382,19 @@ turned `$REPO:latest` into a tag the registry reported as a missing repository.
 ### 3. Manifests and tuning — **verified, tuning outstanding**
 One manifest per step, the KEDA `ScaledObject`, the Karpenter `NodePool`. Then the real
 work: measure and adjust `POOL_MAX`, `max_connections`, probe periods, scan cost and queue
-targets until every failure lands inside its beat.
+targets until every failure lands inside its step.
 
-Both acts reproduce on the live environment.
+Both incidents reproduce on the live environment.
 
-**Act 1**, measured: node arrives at t+20s, pod Running at t+30s, first restart at t+50s,
+**Incident 1**, measured: node arrives at t+20s, pod Running at t+30s, first restart at t+50s,
 CrashLoopBackOff at t+80s. The arithmetic holds exactly as written.
 
-**Act 2**, measured: KEDA scaled workers 0 → 4 → 8 → 16 → 24 while Karpenter bought
+**Incident 2**, measured: KEDA scaled workers 0 → 4 → 8 → 16 → 24 while Karpenter bought
 1 → 2 → 3 → 4 nodes; the queue climbed past 110,000 and stopped draining; 19 of 24 workers
 went NotReady with `remaining connection slots are reserved`. The spiral is real and needs
 no help.
 
-One thing act 2 exposed that the plan had wrong: **the stage panel went blind at the wall.**
+One thing incident 2 exposed that the plan had wrong: **the stage panel went blind at the wall.**
 The observer's connection is refused along with everything else. RDS holds slots back for
 its own internal `rds_reserved` role, and the master user is a member of `rds_superuser`
 rather than a real superuser, so `superuser_reserved_connections` does not reach it either.
@@ -340,12 +405,12 @@ still reads.
 That also corrects the budget everywhere: 60 `max_connections` is **54** in practice, not
 the 57 the manifests claimed.
 
-**Still outstanding:** the three-consecutive-runs rule, and tuning the act 2 beat lengths
+**Still outstanding:** the three-consecutive-runs rule, and tuning the incident 2 step lengths
 against measured timings rather than estimates.
 
 ### 4. Driver and stage — **done, 2026-08-30**
 Port `demo`, `lib/demo.sh`, `lib/story.sh` and `steps/`, translated and recast. Restructure
-into the two acts above. Replace the Postgres stat panel with a combined panel — Karpenter
+into the two incidents above. Replace the Postgres stat panel with a combined panel — Karpenter
 nodes, SQS depth, RDS connections — and rework the tmux layout around it.
 
 **Decided:** the load generator runs in-cluster, as a third binary in the same image. Venue
@@ -356,20 +421,40 @@ asks the audience to trust a number. The summary comes back through `kubectl log
 Still unrehearsed end to end — that is phase 5.
 
 ### 5. Smoke and rehearsal — **script written, not yet run**
-`task smoke` runs both acts unattended with assertions that the failures still happen. Then
+`task smoke` runs both incidents unattended with assertions that the failures still happen. Then
 timed dress rehearsals against the real environment.
 
 **Done when:** smoke passes end to end and the run fits 22 minutes of demo time.
 
 ### 6. Documentation
 RUNBOOK and SCRIPT in English, rewritten for AWS: what is provisioned the night before,
-what the preflight covers, what to do when the venue network dies, per-act timings, and the
+what the preflight covers, what to do when the venue network dies, per-incident timings, and the
 teardown checklist.
 
-### 7. Deck
-Rebuild on `naviteq-slidev`, in English, cut to 6 minutes of theory plus a 3-minute close.
-New content: the AWS architecture, the feedback-loop diagram, Karpenter and KEDA in the
-probe story, and the cost angle as the closing punchline.
+### 7. Deck — **built, 2026-09-13**
+`slides/talk.md` on `naviteq-slidev`, fifteen slides. Not the talk: the talk is the
+terminal, and the theory moved into it as cards. This is the **fallback and the handout**,
+which is a different artefact and a much thinner one. It carries only what a terminal cannot
+show — the architecture, the feedback loop, the checklist — plus a recorded run of each
+incident.
+
+Two outputs from the one source:
+
+- `task deck:build` → `slides/dist`, self-contained and offline. This is the one to present
+  from: the recordings play, the clicks work.
+- `task deck:pdf` → `slides/talk.pdf` for SlideShare, which takes PDF or PPTX and plays
+  nothing at all. The PDF keeps the story and the QR; the recordings become still frames,
+  which is why the cover carries a link to the built version.
+
+The recordings are asciinema casts, one per incident rather than one for the whole show, so
+a cluster that dies at step 2.2 costs 2.2 and nothing else. Text stays text: sharp at any
+projector resolution, and about 100 KB against hundreds of megabytes for video. The player
+is vendored into `slides/public/vendor/` because the situation it exists for is the venue
+network being down.
+
+Outstanding: `task qr` for the real QR (`brew install qrencode`), `task deck:record` for the
+real casts (`brew install asciinema`), and `npm i -g playwright-chromium` before the first
+PDF export. Placeholders are committed so the deck builds and presents today.
 
 ### 8. Contingency
 The original demo's proudest claim was that it needed no internet. This one cannot make that
@@ -388,8 +473,8 @@ plus the exported deck if the network dies on stage.
 | Failures do not reproduce on cloud timings | Phase 3 exists for exactly this; three-run rule before moving on |
 | Spot capacity unavailable on the day | NodePool spans several instance types and both AZs; on-demand fallback within quota |
 | Karpenter slow to provision on the day | Warm one node before going on stage |
-| 8 vCPU quota blocks the scale-out beat | Designed to fit; request an increase early as insurance, but do not depend on it |
-| Two acts overrun 35 minutes | Acts run independently; RUNBOOK carries a short cut and per-beat timings |
+| 8 vCPU quota blocks the scale-out step | Designed to fit; request an increase early as insurance, but do not depend on it |
+| Two incidents overrun 35 minutes | Incidents run independently; RUNBOOK carries a short cut and per-step timings |
 
 ## Open questions
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# The cast, and the opening titles.
+# Who is on call, and the opening titles.
 #
 # The demo tells the story of one team: Timur writes the service, Ruslan fixes
-# production by editing numbers, Madina reads the documentation. The driver
+# production by editing numbers, Madina reads the documentation. They are the
+# people two incidents happen to, and the postmortem at the end is theirs. The driver
 # prints their lines and the speaker reads them out. Everything needed to set up
 # the story happens in the terminal, so there is no slide introducing anyone and
 # no reason to leave the window.
@@ -80,7 +81,7 @@ _type() { # _type COLOUR INDENT TEXT... -- a word at a time, wrapped to the pane
   return 0
 }
 
-# A beat to think, which any key cuts short.
+# A step to think, which any key cuts short.
 _beat_pause() {
   [ "$ANIM" = 1 ] || return 0
   case "$(read_key 1)" in
@@ -104,6 +105,25 @@ card() { # card HEADING LINE...
   [ "$FAST" = 1 ] && return 0
   local head="$1"; shift
   printf '\n  %b%s%b\n' "$C_B" "$head" "$C_OFF"
+  _card_body "$@"
+}
+
+# A card that belongs to somebody. Nearly every teaching card in the show is
+# Madina's: she is the one whose whole part is having read the documentation,
+# and putting her name on them changes what they are. Unattributed, a card is
+# the author interrupting the story to explain something. Signed, it is a thing
+# a character produced -- which is the same content without the interruption,
+# and it gives the room a person to attach the lesson to.
+card_by() { # card_by COLOUR FACE NAME HEADING LINE...
+  [ "$FAST" = 1 ] && return 0
+  local color="$1" face="$2" name="$3" head="$4"; shift 4
+  printf '\n  %b%s %s%b %b. %s%b\n' "$color" "$face" "$name" "$C_OFF" "$C_B" "$head" "$C_OFF"
+  _card_body "$@"
+}
+
+madina_card() { card_by "$C_MADINA" '(^_^)' "Madina's notes" "$@"; }
+
+_card_body() {
   local l
   for l in "$@"; do
     printf '  %b|%b %s\n' "$C_DIM" "$C_OFF" "$l"
@@ -162,7 +182,7 @@ b_0() {
   _type "$C_DIM" 2 'Nothing is recorded -- including the parts that go wrong.'
   _beat_pause
 
-  printf '\n  %bTHE CAST%b\n' "$C_B" "$C_OFF"
+  printf '\n  %bON CALL%b\n' "$C_B" "$C_OFF"
 
   _hero "$C_TIMUR" '(o_o)' 'Timur' 'backend'
   _type "$C_SAY" 8 '"I wrote the service. It takes 30 seconds to start:'
@@ -203,11 +223,32 @@ b_0() {
   printf '\n'
   _type "$C_DIM" 2 'Any resemblance to your team is coincidental. Probably.'
   printf '\n'
-  bigsay "Two acts. Both times the service is killed by a check, not by traffic."
+
+  # The only theory that has to come before the first failure: who is asking,
+  # and what the three answers do. Everything else is taught inside the waits,
+  # at the moment the cluster is about to demonstrate it -- see `teach` in
+  # lib/demo.sh. Six minutes of slides up front became this one card.
+  ask 'click for the one thing you need before incident 1' || true
+  card 'WHAT THIS TALK IS ABOUT' \
+    'Every container you run has something asking it questions.' \
+    'Not a load balancer, not a human: kubelet, every few seconds,' \
+    'forever, using numbers out of your manifest.' \
+    '' \
+    "$(_col 12 'startup')has it finished booting?" \
+    "$(_col 12 'liveness')is it alive?        a wrong answer restarts it" \
+    "$(_col 12 'readiness')can it serve?       a wrong answer unplugs it" \
+    '' \
+    'Of everything that can take a container down -- a crash, an OOM,' \
+    'an eviction, a rollout -- a probe is the only one that does it' \
+    'while the process is working perfectly well.'
+
+  bigsay "Two incidents. Both times the service was killed by a check, not by traffic."
 }
 
 # ── the end ──────────────────────────────────────────────────────────────────
 # The postmortem this would have got, had anyone written one.
+DEMO_URL="${DEMO_URL:-https://github.com/DovnarAlexander/aws-community-central-asia-2026}"
+
 finale() {
   card 'POSTMORTEM' \
     "$(_col 15 'Incident')service down for 40 minutes" \
@@ -223,7 +264,22 @@ finale() {
   madina "I wrote all of this down, by the way."
 
   bigsay "Probes are the only code that can kill a healthy service -- and now bill you for it."
-  say "Next: the checklist."
+
+  # The last reason to leave the terminal was the closing checklist, and the
+  # room does not read a checklist -- it photographs one. So the ending is the
+  # thing worth photographing: a link, which carries the checklist and the code
+  # that produced everything they just watched. `task qr` renders it; without
+  # that file this still prints the URL, which is the part that matters.
+  card 'TAKE THIS WITH YOU' \
+    'Everything you just saw, including the manifests with the numbers:' \
+    '' \
+    "  $DEMO_URL" \
+    '' \
+    'The checklist is in docs/CHECKLIST.md. The probes are in k8s/.' \
+    'The failures are reproducible: task bootstrap, then ./demo.'
+
+  [ -f "$DEMO_ROOT/docs/qr.txt" ] && sed 's/^/  /' "$DEMO_ROOT/docs/qr.txt"
+  return 0
 }
 
-beat "0" "The cast" b_0
+step "0" "Who is on call" b_0

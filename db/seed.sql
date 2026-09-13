@@ -12,7 +12,7 @@
 
 -- Without this the stage goes blind exactly when it matters.
 --
--- When act 2 exhausts max_connections, every new connection is refused --
+-- When incident 2 exhausts max_connections, every new connection is refused --
 -- including the one the panel showing the connection count wants to open. RDS
 -- does keep slots back, but for its own internal rds_reserved role, and the
 -- master user is a member of rds_superuser rather than a real superuser, so
@@ -40,7 +40,7 @@ BEGIN
     END IF;
 
     -- Re-running a partially loaded seed would leave a table that is the wrong
-    -- size, and every timing in act 2 is calibrated against two million rows.
+    -- size, and every timing in incident 2 is calibrated against two million rows.
     TRUNCATE items RESTART IDENTITY;
 
     INSERT INTO items (payload)

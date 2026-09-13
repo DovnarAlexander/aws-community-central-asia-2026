@@ -1,19 +1,16 @@
-# Act 1, beat 5 -- the fix, which is two changes and no new code.
+# Incident 1, step 1.1 -- the probe Timur copied out of a blog post.
 #
-# HEALTHZ_MODE=local: liveness answers "is this process alive" without leaving
-# the process. It cannot be starved by the work the process is doing.
-#
-# And the numbers get slack: 10-second period, 3-second timeout, five misses.
-# A liveness probe should be the last resort, not the first responder -- taking
-# a busy replica out of the load balancer is readiness' job, and readiness stays
-# tight on purpose.
+# The service takes 30 seconds to warm up. The probe starts asking after 5, and
+# gives up after three misses at 5-second intervals. 5 + 3x5 = 20 seconds of
+# patience against 30 seconds of startup. Nothing here is a bug, and the pod
+# dies every single time.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: svc
   namespace: demo
 spec:
-  replicas: 3
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -34,11 +31,7 @@ spec:
             - containerPort: 8080
           env:
             - name: WARMUP_SECONDS
-              value: "10"
-            - name: WORK_LATENCY_MS
-              value: "200"
-            - name: POOL_MAX
-              value: "4"
+              value: "30"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE
@@ -48,18 +41,9 @@ spec:
                 secretKeyRef: { name: db, key: dsn }
           resources:
             requests: { cpu: "250m", memory: "64Mi" }
-          startupProbe:
-            httpGet: { path: /startupz, port: 8080 }
-            periodSeconds: 2
-            timeoutSeconds: 1
-            failureThreshold: 60
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 5
-          readinessProbe:
-            httpGet: { path: /ready, port: 8080 }
+            initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 1
             failureThreshold: 3

@@ -10,12 +10,18 @@
 version: '3'
 
 env:
-  AWS_PROFILE: '{{.AWS_PROFILE | default "personal"}}'
+  # No AWS_PROFILE here on purpose. Credentials come from the standard chain --
+  # whatever `aws sts get-caller-identity` already resolves: an exported
+  # AWS_PROFILE, plain AWS_ACCESS_KEY_ID, an SSO session, an instance role.
+  # Pinning a profile name here would break every one of those but the first.
+  # The account is still guarded: infra/root.hcl refuses a wrong-account apply.
   AWS_REGION: '{{.AWS_REGION | default "eu-central-1"}}'
   TG_NON_INTERACTIVE: '{{.TG_NON_INTERACTIVE | default "false"}}'
 
 vars:
   PROJECT: probes-demo
+  # What the closing card sends the room to, and what `task qr` encodes.
+  DEMO_URL: '{{.DEMO_URL | default "https://github.com/DovnarAlexander/aws-community-central-asia-2026"}}'
   GUARDRAILS: infra/guardrails
   STACK: infra/demo
   TTL_HOURS: '{{.TTL_HOURS | default "8"}}'
@@ -146,10 +152,15 @@ tasks:
         printf '\n  \033[1;32m✓\033[0m %s:latest\n\n' "$REPO"
 
   secrets:
-    desc: put the database DSN into the cluster as a secret
+    desc: the namespace, the Service and the database DSN — everything the demo assumes exists
     silent: true
     cmds:
-      - kubectl apply -f k8s/00-namespace.yaml
+      # Both 00- files, because the Service is what `svc.demo.svc.cluster.local`
+      # resolves to and the load generator only ever reaches the api through it.
+      # It used to be applied by nothing at all: every request the generator made
+      # was a connection error, so incident 1 measured no load and incident 2 enqueued no
+      # work, and both incidents ran to the end looking merely disappointing.
+      - kubectl apply -f k8s/00-namespace.yaml -f k8s/00-service.yaml
       - |
         DSN=$(aws ssm get-parameter --name /{{.PROJECT}}/database/dsn --with-decryption \
               --query 'Parameter.Value' --output text)
@@ -171,9 +182,16 @@ tasks:
       - kubectl -n demo logs job/seed --tail=5
 
   bootstrap:
-    desc: everything the night before — infra, image, data
+    desc: everything the night before — infra, cluster prerequisites, image, data
     cmds:
       - task: up
+      # Both of these used to be reached only through `seed`, which is a problem
+      # the day the database is restored from a snapshot instead of seeded: that
+      # path skips seed, and with it the namespace, the Service and the psql pod
+      # that the stat panel and three steps of incident 2 exec into. They are cheap
+      # and idempotent, so they run here in their own right.
+      - task: secrets
+      - task: dbshell
       - task: images
       - task: seed
       - cmd: printf '\n  \033[1;32mready\033[0m — consider task db:snapshot so the next run restores instead of re-seeding\n\n'
@@ -188,8 +206,17 @@ tasks:
       - ./stage
 
   reset:
-    desc: tear the workloads down for a clean run, leaving the cluster up
+    desc: one command back to the state the show starts from, from any state
+    silent: true
     cmds:
+      # Both halves, in this order. `secrets` puts back what has to exist --
+      # namespace, Service, the DSN out of SSM -- and every one of those applies
+      # is a no-op when it is already there. `./demo --reset` then removes what
+      # must not: the workloads, the queue contents and the last run's numbers.
+      #
+      # Safe to run from any state, which is the point: after a smoke run, on a
+      # half-built cluster, or twice in a row.
+      - task: secrets
       - ./demo --reset
 
   dbshell:
@@ -197,6 +224,74 @@ tasks:
     cmds:
       - kubectl apply -f k8s/dbshell.yaml
       - kubectl -n demo rollout status deploy/dbshell --timeout=180s
+
+  # ── the deck ───────────────────────────────────────────────────────────────
+  # The talk is the terminal. This is the fallback for the day the cluster is
+  # not available, and the artefact that gets shared afterwards.
+
+  deck:
+    desc: open the deck in a browser, live-reloading — slides/talk.md
+    interactive: true
+    cmds:
+      - slidev slides/talk.md
+
+  deck:build:
+    desc: build the deck to slides/dist — this is the one to present from
+    silent: true
+    cmds:
+      - slidev build slides/talk.md --out dist --base ./
+      - cmd: printf '\n  \033[1;32m✓\033[0m slides/dist — open index.html, works offline\n\n'
+
+  deck:pdf:
+    desc: export a PDF — the only thing SlideShare can take, since it plays nothing
+    silent: true
+    cmds:
+      # Recordings, clicks and mermaid animation do not survive a PDF. What
+      # survives is the story and the QR, which is what a handout is for.
+      - |
+        node -e "require.resolve('playwright-chromium')" >/dev/null 2>&1 || {
+          printf '  export needs Playwright once: \033[1mnpm i -g playwright-chromium\033[0m\n' >&2
+          exit 1
+        }
+      - slidev export slides/talk.md --output slides/talk.pdf --with-clicks
+      - cmd: printf '\n  \033[1;32m✓\033[0m slides/talk.pdf\n\n'
+
+  deck:record:
+    desc: record one cast for the deck — task deck:record -- incident1 [start-step]
+    interactive: true
+    cmds:
+      - |
+        NAME="{{index .MATCH 0}}"; NAME="${NAME:-$(echo '{{.CLI_ARGS}}' | awk '{print $1}')}"
+        START=$(echo '{{.CLI_ARGS}}' | awk '{print $2}')
+        [ -n "$NAME" ] || { printf '  usage: task deck:record -- incident1 [1.1]\n' >&2; exit 2; }
+        command -v asciinema >/dev/null 2>&1 || {
+          printf '  asciinema not installed: \033[1mbrew install asciinema\033[0m\n' >&2; exit 1
+        }
+        mkdir -p slides/public/casts
+        printf '\n  recording %s -- the stage opens, run the demo, then exit tmux to stop\n' "$NAME"
+        printf '  %sthe cast keeps text as text, so it stays sharp on a projector%s\n\n' "$(tput dim 2>/dev/null)" "$(tput sgr0 2>/dev/null)"
+        DEMO_ARGS="$START" asciinema rec --overwrite --cols 120 --rows 36 \
+          --title "probes-demo $NAME" --command ./stage \
+          "slides/public/casts/$NAME.cast"
+        printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast\n\n' "$NAME"
+
+  qr:
+    desc: render the closing QR into docs/qr.txt — run once, it is committed after that
+    silent: true
+    cmds:
+      - |
+        command -v qrencode >/dev/null 2>&1 || {
+          printf '  qrencode not installed: \033[1mbrew install qrencode\033[0m\n' >&2
+          exit 1
+        }
+        # ASCIIUTF8 uses half blocks, so the code is square on a terminal that
+        # draws cells taller than they are wide -- ANSI output is twice as tall
+        # and does not fit the driver pane.
+        qrencode -t ASCIIUTF8 -m 1 -o docs/qr.txt "{{.DEMO_URL}}"
+        # The same code as a PNG, for the deck's closing slide.
+        mkdir -p slides/public
+        qrencode -t PNG -s 8 -m 2 -o slides/public/qr.png "{{.DEMO_URL}}"
+        printf '  \033[1;32m✓\033[0m docs/qr.txt and slides/public/qr.png — %s\n' "{{.DEMO_URL}}"
 
   preflight:
     desc: one screen of checks — run this backstage before going on
