@@ -35,11 +35,18 @@ printf '\n  %spreflight -- %s%s\n' "$C_B" "$PROJECT" "$C_OFF"
 
 section 'on this machine'
 
-for tool in aws kubectl helm k9s tmux jq terragrunt docker; do
+# envsubst is on this list because of how quietly it fails. Every manifest on
+# stage is applied through it; without it kubectl gets an empty stream, says
+# "no objects passed to apply" in one line, and the demo carries on for twenty
+# minutes deploying nothing at all.
+for tool in aws kubectl helm k9s tmux jq terragrunt docker envsubst; do
   if command -v "$tool" >/dev/null 2>&1; then
     ok "$tool"
   else
-    bad "$tool" 'not installed'
+    case "$tool" in
+      envsubst) bad "$tool" 'not installed -- brew install gettext' ;;
+      *)        bad "$tool" 'not installed' ;;
+    esac
   fi
 done
 
@@ -47,12 +54,27 @@ done
 
 section 'aws'
 
-if ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
+# Nothing here sets AWS_PROFILE -- whatever the standard credential chain
+# resolves is what the demo runs against. Which makes "the right account" a
+# thing worth checking out loud, rather than assuming one profile name.
+if IDENTITY=$(aws sts get-caller-identity --query '[Account,Arn]' --output text 2>/dev/null); then
+  ACCOUNT=$(printf '%s' "$IDENTITY" | awk '{print $1}')
+  ARN=$(printf '%s' "$IDENTITY" | awk '{print $2}')
   ok 'credentials' "account $ACCOUNT"
+  ok 'identity' "${ARN##*/}"
 else
   bad 'credentials' 'aws sts get-caller-identity failed'
   printf '\n  %severything below depends on this. fix it first.%s\n\n' "$C_BAD" "$C_OFF"
   exit 1
+fi
+
+# The account Terraform is pinned to, read from where it is already declared so
+# the two cannot drift. A wrong account fails the apply anyway -- failing here
+# says why, before twenty minutes of EKS.
+EXPECTED_ACCOUNT=$(sed -n 's/^[[:space:]]*account_id[[:space:]]*=[[:space:]]*"\([0-9]\{12\}\)".*/\1/p' \
+                   "$(dirname "$0")/../infra/root.hcl" | head -1)
+if [ -n "$EXPECTED_ACCOUNT" ] && [ "$ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
+  bad 'account' "$ACCOUNT, expected $EXPECTED_ACCOUNT -- wrong credentials"
 fi
 
 # ── cluster ──────────────────────────────────────────────────────────────────
@@ -75,6 +97,26 @@ else
   bad 'kubectl reaches the api' 'task kubeconfig'
 fi
 
+# Nothing on stage fails visibly when this is missing: the pods come up, the
+# probes go green, and every request the load generator makes is a connection
+# error to a name that does not resolve. Both incidents then run to the end measuring
+# nothing at all.
+if kubectl -n "$NS" get service svc >/dev/null 2>&1; then
+  ok 'service/svc' 'what the load generator resolves'
+else
+  bad 'service/svc' 'missing -- task reset'
+fi
+
+# `task smoke` ends on the last step, not on a clean cluster, so the night before
+# a talk this is the check that catches it. The driver refuses to start the show
+# from the top while these exist; this is the earlier, gentler warning.
+LEFTOVERS=$(kubectl -n "$NS" get deploy svc worker --no-headers 2>/dev/null | wc -l | tr -d ' ')
+if [ "${LEFTOVERS:-0}" -eq 0 ]; then
+  ok 'no workloads from a previous run'
+else
+  warn 'workloads from a previous run' "$LEFTOVERS deployment(s) -- task reset"
+fi
+
 NODES=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready ')
 if [ "${NODES:-0}" -ge 1 ]; then
   ok 'nodes ready' "$NODES"
@@ -82,7 +124,7 @@ else
   bad 'nodes ready' 'none'
 fi
 
-# A warm Karpenter node before the talk means act 1's Pending beat lasts about
+# A warm Karpenter node before the talk means incident 1's Pending step lasts about
 # fifty seconds instead of however long EC2 feels like taking on the day.
 KARPENTER_NODES=$(kubectl get nodes -l role=demo --no-headers 2>/dev/null | wc -l | tr -d ' ')
 if [ "${KARPENTER_NODES:-0}" -ge 1 ]; then
@@ -124,16 +166,16 @@ fi
 if kubectl -n "$NS" get secret db >/dev/null 2>&1; then
   ok 'secret/db'
 else
-  bad 'secret/db' 'task secrets'
+  bad 'secret/db' 'task reset'
 fi
 
 if kubectl -n "$NS" get deploy dbshell >/dev/null 2>&1; then
   ok 'dbshell'
 else
-  bad 'dbshell' 'task dbshell'
+  bad 'dbshell' 'task reset'
 fi
 
-# The row count is the one thing that silently ruins act 2: a half-seeded table
+# The row count is the one thing that silently ruins incident 2: a half-seeded table
 # makes the expensive readiness scan cheap, and the cascade never arrives.
 #
 # Single-quoted on purpose. $DSN has to reach the pod's shell intact -- expanded
@@ -155,7 +197,7 @@ if [ -n "$QUEUE_URL" ]; then
   if [ "${DEPTH:-0}" -eq 0 ] 2>/dev/null; then
     ok 'sqs work queue' 'empty'
   else
-    warn 'sqs work queue' "$DEPTH messages left over -- purge before act 2"
+    warn 'sqs work queue' "$DEPTH messages left over -- purge before incident 2"
   fi
 else
   bad 'sqs work queue' 'not found'

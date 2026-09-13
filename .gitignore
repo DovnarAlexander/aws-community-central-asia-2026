@@ -53,3 +53,10 @@ __pycache__/
 .terragrunt-cache/
 .terragrunt-stack/
 infra/local.hcl
+
+# The deck builds from slides/talk.md; the build and the export do not belong in
+# git. The casts and the vendored player do -- they are the fallback, and a
+# fallback you have to rebuild on the day is not one.
+slides/dist/
+slides/talk.pdf
+slides/node_modules/

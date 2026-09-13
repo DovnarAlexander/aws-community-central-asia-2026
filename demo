@@ -3,8 +3,8 @@
 # space.
 #
 #   ./demo            from the top
-#   ./demo 2.3        jump to a beat (earlier ones run silently)
-#   ./demo --list     show every beat
+#   ./demo 2.3        jump to a step (earlier ones run silently)
+#   ./demo --list     show every step
 #   ./demo --reset    tear the workloads down and start over
 
 set -uo pipefail
@@ -16,9 +16,9 @@ cd "$DEMO_ROOT"
 . "$DEMO_ROOT/lib/demo.sh"
 # shellcheck source=lib/story.sh
 . "$DEMO_ROOT/lib/story.sh"
-# shellcheck source=steps/act1.sh
-. "$DEMO_ROOT/steps/act1.sh"
-# shellcheck source=steps/act2.sh
-. "$DEMO_ROOT/steps/act2.sh"
+# shellcheck source=steps/incident1.sh
+. "$DEMO_ROOT/steps/incident1.sh"
+# shellcheck source=steps/incident2.sh
+. "$DEMO_ROOT/steps/incident2.sh"
 
 demo_main "$@"

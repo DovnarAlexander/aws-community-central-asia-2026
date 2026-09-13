@@ -1,12 +1,12 @@
-# Act 1, beat 4 -- the production configuration, and the first real traffic.
+# Incident 1, step 1.4 -- the fix, which is two changes and no new code.
 #
-# The start is fixed, so the warmup drops to 10 seconds and the replica count
-# goes to three. Nobody touched the liveness probe, because it is green.
+# HEALTHZ_MODE=local: liveness answers "is this process alive" without leaving
+# the process. It cannot be starved by the work the process is doing.
 #
-# HEALTHZ_MODE=db is the whole beat: /healthz now queues for the same worker
-# slot and the same pooled connection that /work is using. Under load the queue
-# grows past timeoutSeconds: 1, three checks in a row miss, and kubelet restarts
-# three entirely healthy replicas for being busy.
+# And the numbers get slack: 10-second period, 3-second timeout, five misses.
+# A liveness probe should be the last resort, not the first responder -- taking
+# a busy replica out of the load balancer is readiness' job, and readiness stays
+# tight on purpose.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,7 +40,7 @@ spec:
             - name: POOL_MAX
               value: "4"
             - name: HEALTHZ_MODE
-              value: "db"
+              value: "local"
             - name: READY_MODE
               value: "cached"
             - name: DSN
@@ -55,9 +55,9 @@ spec:
             failureThreshold: 60
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
-            periodSeconds: 5
-            timeoutSeconds: 1
-            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
           readinessProbe:
             httpGet: { path: /ready, port: 8080 }
             periodSeconds: 5

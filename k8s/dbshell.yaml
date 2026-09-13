@@ -1,11 +1,11 @@
 # A psql that is already running.
 #
 # On stage a database query has to answer immediately, and `kubectl run` against
-# a cold image takes long enough to break the rhythm of a beat. This pod sits
+# a cold image takes long enough to break the rhythm of a step. This pod sits
 # there doing nothing so that every query is an exec.
 #
 # It connects as the RDS master user, which holds rds_superuser and therefore
-# keeps the reserved connection slots. That is deliberate: when act 2 walks into
+# keeps the reserved connection slots. That is deliberate: when incident 2 walks into
 # the connection wall and locks everything else out, the counter showing the
 # wall is still able to connect.
 apiVersion: apps/v1

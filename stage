@@ -4,11 +4,11 @@
 #   left           the driver -- the only pane you touch
 #   right top      k9s, pods in the demo namespace
 #   right middle   nodes, queue depth, database connections
-#   right bottom   the load generator, one line a second
+#   right bottom   the load generator, one line a second, named in its border
 #
 # The layout is for a projector, not a monitor: the driver gets two thirds of
 # the width, and the right-hand panes get exactly the number of rows their
-# output occupies. Whatever is left goes to the pods, because in act 2 there are
+# output occupies. Whatever is left goes to the pods, because in incident 2 there are
 # a lot of them and that is the pane that needs to grow.
 #
 # Detach with Ctrl-b d, come back with ./stage. Rebuild from scratch with
@@ -70,12 +70,12 @@ tmux set-option -t "$SESSION" -g pane-border-format ' #{pane_title} '
 
 # Left and right. The driver gets nearly two thirds: it prints the most and is
 # read the longest. The right column cannot be squeezed further without k9s
-# truncating the RESTARTS column, which is the whole point of act 1.
+# truncating the RESTARTS column, which is the whole point of incident 1.
 tmux split-window -h -t "$SESSION:0.0" -c "$DEMO_ROOT" -p 38
 
 # Right column: pods, stats, load. Heights in rows rather than percentages,
 # because the stat panel and the load panel have fixed-length output and would
-# only leave extra rows blank. The remainder goes to the pods, of which act 2
+# only leave extra rows blank. The remainder goes to the pods, of which incident 2
 # has a great many.
 #
 # Split bottom-up and at the final height directly: resize-pane after a
@@ -93,8 +93,13 @@ tmux select-pane -t "$SESSION:0.3" -T 'LOAD'
 # third of the pane on its own furniture by default.
 tmux send-keys -t "$SESSION:0.1" "k9s --headless --logoless --crumbsless --readonly -n demo --command pods" C-m
 tmux send-keys -t "$SESSION:0.2" "$DEMO_ROOT/scripts/stat.sh" C-m
-tmux send-keys -t "$SESSION:0.3" "kubectl -n demo logs -f pod/loadgen --tail=8 2>/dev/null || echo 'no load running'" C-m
-tmux send-keys -t "$SESSION:0.0" "clear; ./demo" C-m
+# Not a bare `kubectl logs -f`: at stage-build time there is no loadgen pod, so
+# that command failed once and left the pane a dead shell for the rest of the
+# talk. scripts/loadpanel.sh waits for each of the four loads in turn.
+tmux send-keys -t "$SESSION:0.3" "$DEMO_ROOT/scripts/loadpanel.sh" C-m
+# DEMO_ARGS lets a recording start where the segment starts: the deck carries
+# one cast per incident, not one file for the whole show.
+tmux send-keys -t "$SESSION:0.0" "clear; ./demo ${DEMO_ARGS:-}" C-m
 
 tmux select-pane -t "$SESSION:0.0"
 exec tmux attach -t "$SESSION"

@@ -1,18 +1,19 @@
-# Act 2, beat 1 -- the readiness probe that passed review.
+# Incident 2, step 2.4 -- the fix, and three separate lessons in it.
 #
-# "Readiness should verify we can actually read our data." Nobody argues with
-# that in a pull request, and at three replicas nobody notices: a scan every two
-# seconds, three times over, is a rounding error on the database.
+# 1. READY_MODE=cached. One background refresher per replica does one cheap
+#    ping per interval; the probe reads a flag. The cost is O(1) whatever the
+#    replica count, which is the only property that survives autoscaling.
 #
-# The cost is replicas x (1/period). That is the entire act. Everything that
-# follows is arithmetic.
+# 2. The pool is budgeted against the wall instead of ignoring it. 12 workers
+#    at 3 connections plus 3 api replicas at 3 is 45, against the 54 the
+#    database will actually give us. The number was always knowable.
 #
-# The worker is scaled by KEDA on queue depth, from zero. Its pool is four
-# connections per replica. The database has 60, of which RDS keeps 4 for itself
-# and 2 more are held back for the observer -- 54 are actually available.
-# maxReplicaCount is 24 here, so the ceiling is 24x4 = 96 worker connections
-# plus 3x4 from the api against a budget of 54. The wall is not a risk, it is
-# a schedule.
+# 3. maxReplicaCount is 12, not 24. An autoscaler with no ceiling is a way to
+#    convert an incident into an invoice -- and on this account, into a real
+#    one. Karpenter stops buying nodes because KEDA stops asking.
+#
+# Readiness also gets a longer period. It is no longer expensive, but there is
+# nothing to gain from asking twice a second either.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,11 +45,11 @@ spec:
             - name: WORK_LATENCY_MS
               value: "200"
             - name: POOL_MAX
-              value: "4"
+              value: "3"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE
-              value: "db_each_call"
+              value: "cached"
             - name: QUEUE_URL
               value: ${QUEUE_URL}
             - name: DSN
@@ -68,7 +69,7 @@ spec:
             failureThreshold: 5
           readinessProbe:
             httpGet: { path: /ready, port: 8080 }
-            periodSeconds: 2
+            periodSeconds: 5
             timeoutSeconds: 1
             failureThreshold: 3
 ---
@@ -101,13 +102,13 @@ spec:
             - name: WORK_LATENCY_MS
               value: "200"
             - name: POOL_MAX
-              value: "4"
+              value: "3"
             - name: CONCURRENCY
               value: "2"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE
-              value: "db_each_call"
+              value: "cached"
             - name: QUEUE_URL
               value: ${QUEUE_URL}
             - name: DSN
@@ -127,7 +128,7 @@ spec:
             failureThreshold: 5
           readinessProbe:
             httpGet: { path: /ready, port: 8080 }
-            periodSeconds: 2
+            periodSeconds: 5
             timeoutSeconds: 1
             failureThreshold: 3
 ---
@@ -151,7 +152,7 @@ spec:
   scaleTargetRef:
     name: worker
   minReplicaCount: 0
-  maxReplicaCount: 24
+  maxReplicaCount: 12
   pollingInterval: 5
   cooldownPeriod: 30
   triggers:

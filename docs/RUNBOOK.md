@@ -1,30 +1,30 @@
 # Runbook — "The probe that killed itself", AWS edition
 
-What to run, what to say, how long each beat takes, and what to do when it does not
+What to run, what to say, how long each step takes, and what to do when it does not
 go the way it went in rehearsal.
 
 The only command typed on stage is `./stage`. After that it is all "next": right arrow on
 the clicker, Enter, or space.
 
-## The cast
+## Who is on call
 
-The demo tells the story of one team. Both acts are written as dialogue: the driver prints
+The demo tells the story of one team. Both incidents are written as dialogue: the driver prints
 the lines, you read them out — in character, or flat, or straight off the screen. No
-separate preparation is needed; the terminal is the teleprompter. Beat 0 introduces
+separate preparation is needed; the terminal is the teleprompter. Step 0 introduces
 everyone, so there is no cast slide and no reason to leave the window.
 
 | Who | Role | What they do |
 | --- | --- | --- |
 | `(o_o)` Timur | backend | Wrote a service that takes 30 seconds to start; copied the probe from an article |
 | `(-_-)` Ruslan | DevOps | Fixes production by raising numbers in YAML. Approved the review |
-| `(^_^)` Madina | intern | Read the documentation. Brings the startup probe and the act 2 fix |
+| `(^_^)` Madina | intern | Read the documentation. Brings the startup probe and the incident 2 fix |
 | `[o_o]` kubelet | executioner | Does exactly what the manifest says. Blameless |
 | `(~_~)` Postgres | database | Two vCPU, 54 usable connections, endless patience |
 | `[>_<]` KEDA | pod autoscaler | Queue is deep, so add workers. No other ideas |
 | `[$_$]` Karpenter | node autoscaler | Pods are Pending, so buy machines. Has a credit card |
 
 Twice per demo the driver prints an **EVERYONE VOTE** card — three options, the room shouts
-a number. Nothing needs pressing; the answer arrives a beat later. Both times the correct
+a number. Nothing needs pressing; the answer arrives a moment later. Both times the correct
 answer is not on the list, and that is the point: in 1.4 the culprit is not a person but the
 question the probe was asking, and in 2.3 all three obvious responses add work to the
 database everyone is already stuck behind.
@@ -35,10 +35,10 @@ With internet, unhurried, about half an hour:
 
 ```sh
 task bootstrap    # infra, image, 2M rows -- roughly 25 minutes, mostly EKS
-task smoke        # every beat unattended, with assertions -- about 20 minutes
+task smoke        # every step unattended, with assertions -- about 20 minutes
 ```
 
-`task bootstrap` is `up` + `images` + `seed`. Everything it creates is tagged
+`task bootstrap` is `up` + `secrets` + `dbshell` + `images` + `seed`. Everything it creates is tagged
 `ExpiresAt` eight hours out, so if the talk is tomorrow, bring it up tomorrow — or re-run
 `task up` in the morning to push the tag forward. The reaper will otherwise shut the
 cluster down overnight, which is the correct behaviour and an inconvenient surprise.
@@ -52,14 +52,14 @@ Backstage, with the projector already mirrored:
 
 ```sh
 task up           # if the environment is not already running
+task reset        # one command to the state step 1.1 expects — run it every time
 task preflight    # one screen of checks
-task dbshell      # the always-on psql the stat panel execs into
 ./stage           # layout plus driver, waiting for the first press
 ```
 
 `task preflight` should be green except possibly **karpenter capacity warm**, which is a
-warning until something has been scheduled. Warm it deliberately — it makes act 1's first
-beat a predictable 20 seconds instead of however long EC2 feels like taking:
+warning until something has been scheduled. Warm it deliberately — it makes incident 1's first
+step a predictable 20 seconds instead of however long EC2 feels like taking:
 
 ```sh
 kubectl -n demo run warm --image=public.ecr.aws/docker/library/busybox:latest \
@@ -69,6 +69,11 @@ kubectl -n demo run warm --image=public.ecr.aws/docker/library/busybox:latest \
 Layout already on screen but no driver in it? `./stage` rebuilds it. Force with
 `./stage --fresh`.
 
+The bottom right pane names the run it is showing — `LOAD . incident1-before` in its border, and
+the mode and rate in its first line — and it keeps the finished run's last lines on screen,
+`SUMMARY` included, until the next load starts. That is the number the before/after table is
+built from, so it is worth being able to point at.
+
 ### Font and layout
 
 Terminal font large: **18pt minimum, 22–24pt is better**. Do not judge by eye — judge by
@@ -77,7 +82,7 @@ the window size in characters, because the smaller the font, the more fit. Aim f
 the middle of the room. `./stage` measures this itself and warns before the talk starts.
 
 The layout assumes exactly that size: 62% of the width to the driver, 5 rows to the stat
-panel, 8 to the load generator, everything else to the pods. In act 2 there are up to
+panel, 8 to the load generator, everything else to the pods. In incident 2 there are up to
 twenty-four of them, and that pane is the one that needs to grow.
 
 If the projector still clips k9s's `RESTARTS` column, it does not matter: during every live
@@ -88,52 +93,105 @@ any pane to full screen and back.
 
 35 minutes, and the buffer is not optional for a live cloud demo.
 
+There are no slides. The six minutes of theory became one card in the titles, eight `teach`
+cards spread through the incidents, and a closing card with a link and a QR. Each teaching card
+sits in a wait the demo was going to spend anyway — a rollout settling, a node being bought,
+a queue filling before KEDA has looked at it — and is printed in the driver pane, so the
+right-hand panes keep running underneath it.
+
+Seven of the eight are **Madina's**, printed under her name: read them as hers, not as
+yours. One line of her dialogue sets each one up, and in 2.1 the card is explicitly what she
+did not say out loud.
+
+**The card is always up before the wait it covers, never after.** That is the whole working
+method: press, the thing starts coming up, the card appears, and you read it aloud while the
+cluster works — the screen and the voice carrying the same content at the same time. If you
+ever find yourself watching a countdown with nothing to say, that is a bug in the step, not
+in your preparation. The same rule is why 1.2's kill window opens with both numbers that are
+racing, and why 2.4 says what to watch for before the ninety seconds rather than after. The KEDA card is unsigned — it is about the autoscaler, not about
+anybody. Two arguments that used to be cards are now spoken: the one about
+`initialDelaySeconds` in 1.2, and the closing lines of 2.4.
+
+**Before the talk, once:** `task qr` writes `docs/qr.txt` for the closing card and
+`slides/public/qr.png` for the deck — it needs `qrencode` (`brew install qrencode`), and both
+files are committed afterwards. `task deck:record -- incident1` and
+`task deck:record -- incident2 2.1` record the fallback casts against a live cluster; they
+need `brew install asciinema`. Placeholders are committed for all three, so nothing is broken
+before you get to them.
+
 | | What | Length |
 | --- | --- | --- |
-| Slides | Theory | 6 min |
-| 0 | The cast | 45 s |
-| 1.1 | Timur ships a service | 2.5 min |
-| 1.2 | Ruslan comes to the rescue | 2 min |
-| 1.3 | Madina reads the documentation | 1.5 min |
-| 1.4 | Production config, and real traffic | 2 min |
-| 1.5 | End of act 1 — before and after | 1.5 min |
-| 2.1 | The review that let it through | 2 min |
+| 0 | The cast, and one card: what this talk is about | 1.5 min |
+| 1.1 | Timur ships a service | 4 min |
+| 1.2 | The number, and the documentation | 5.5 min |
+| 1.3 | Production config, and real traffic | 4 min |
+| 1.4 | End of incident 1 — before and after | 3.5 min |
+| 2.1 | The review that let it through | 2.5 min |
 | 2.2 | Black Friday: the queue fills | 3 min |
-| 2.3 | The cascade, and the autoscalers help | 4 min |
-| 2.4 | Madina unhooks the probe | 4 min |
-| Slides | Mental model, checklist, close | 3 min |
+| 2.3 | The cascade, and the autoscalers help | 5 min |
+| 2.4 | Madina unhooks the probe | 5.5 min |
+| Close | Postmortem, the takeaway card, the QR | 2 min |
 | | Buffer | 3 min |
 
-Running long? Every `watch_pods` and `watch_scale` ends early on "next". Once the room has
-visibly got the point, move.
+Modelled end to end that is **39.5 to 43 minutes against a 35-minute slot**. Roughly a
+minute and a half of that came back deliberately: signing the cards costs a line of Madina
+setting each one up, and every wait now opens with the text rather than with silence — which
+is more words, spoken over time the clock was spending anyway — 38 if the
+countdowns get cut once the room has the point, 42 if everything runs to zero. It was 44 to
+51 before the theory moved into the waits, so the restructuring bought six to nine minutes
+and the show is still three to seven minutes long.
 
-## Act 1 — the probe that kills a healthy pod
+Both figures are modelled, not measured. The countdowns come to 9.5 minutes, which is the
+only part `task smoke` measures directly; everything else assumes five seconds per spoken
+line, and there are eighty-eight of them. That assumption alone is worth ±1.5 minutes, so
+**rehearse with a stopwatch before deciding what else to cut** — the answer changes
+depending on how fast the dialogue actually goes.
+
+Running long? Three levers, in the order to pull them:
+
+1. Every `watch_pods` and `watch_scale` ends early on "next". Once the room has visibly got
+   the point, move.
+2. Every `teach` card ends early on "next" too — and the wait underneath keeps running, so
+   the cluster is no further behind. Cards are written with the line that matters first and
+   the rest as depth to drop.
+3. The incidents are independent. Incident 1 alone with the postmortem is a complete talk.
+
+## Incident 1 — the probe that kills a healthy pod
 
 ### 1.1 — Timur ships a service
 
 The pod is `Pending` first, because there is nowhere to put it. Karpenter buys a machine;
-measured at about 20 seconds. Fill the wait by reading the manifest out loud — the numbers
-in it are the whole beat.
+measured at about 20 seconds. The **four numbers** card goes up in that wait — the probe
+vocabulary explained immediately before the probe uses it to kill something.
 
 Then: warmup 30 seconds, `initialDelaySeconds: 5`, three misses at 5-second intervals. Five
 plus fifteen is twenty seconds of patience against thirty seconds of startup. The first
-restart lands at about t+50s from apply, `CrashLoopBackOff` at about t+80s.
+restart lands at about t+20s from the container starting, the second at about t+50s once
+the restart backoff is added.
 
 **Watch:** the `RESTARTS` column. Count the misses out loud with kubelet.
 
-### 1.2 — Ruslan comes to the rescue
+### 1.2 — The number, and the documentation
 
-`initialDelaySeconds: 40` fixes it, and holds until the day the start gets slower.
-`kubectl set env WARMUP_SECONDS=60` is that day. The manifest is untouched; everything
-around it changed.
+Two steps in one: Ruslan's number and Madina's answer to it are a question and its answer,
+and telling them separately cost an extra rollout and an extra step header for one lesson.
 
-### 1.3 — Madina reads the documentation
+`initialDelaySeconds: 25` against a 15-second start fixes it, and holds until the day the
+start gets slower. `kubectl set env WARMUP_SECONDS=50` is that day: patience is 25 + 3×5 =
+40 seconds, so the kill lands at 40, ten seconds before the service would have been ready.
+The manifest is untouched; everything around it changed.
 
-`startupProbe` gives the slow start its own budget — 60 checks at 2 seconds — and while it
-runs, liveness is not consulted. Same 60-second warmup as the previous beat, and no
-restarts at all.
+These numbers used to be 40 against 30 and 60 for the slow day. They are smaller because
+the failure is pure arithmetic and arithmetic is as true at 25 seconds as at 40 — what the
+halving bought is the stage time the cards now spend.
 
-### 1.4 — Production config, and real traffic
+Then `startupProbe`: its own budget, 60 checks at 2 seconds, and while it runs liveness is
+not consulted at all. Same 50-second start as the breakage a minute earlier — the manifest
+carries `WARMUP_SECONDS=50` for exactly that reason, so do not "fix" it back to 15. The
+**three probes** card fills the 50 seconds; the pods pane shows 0/1 and `RESTARTS 0`
+throughout, which is the step's whole argument.
+
+### 1.3 — Production config, and real traffic
 
 Three replicas, `HEALTHZ_MODE=db`. `/healthz` now queues for the same worker slot and the
 same pooled connection as `/work`. Under load the queue outgrows `timeoutSeconds: 1`, three
@@ -141,7 +199,7 @@ checks miss, and kubelet restarts three healthy replicas for being busy.
 
 **Vote card.** Let the room argue. Do not answer.
 
-### 1.5 — End of act 1
+### 1.4 — End of incident 1
 
 `HEALTHZ_MODE=local`, and the liveness numbers get slack. The before/after table is built
 from two real measurements — do not paraphrase it, read the numbers.
@@ -149,7 +207,7 @@ from two real measurements — do not paraphrase it, read the numbers.
 **The answer to the vote** is option four: the question the probe was asking. It asked "are
 you answering quickly" and punished the answer as though it meant "are you dead".
 
-## Act 2 — the probe that buys EC2 instances
+## Incident 2 — the probe that buys EC2 instances
 
 ### 2.1 — The review that let it through
 
@@ -157,13 +215,21 @@ you answering quickly" and punished the answer as though it meant "are you dead"
 sentence nobody argues with in a pull request. At three replicas the database does not
 notice. Show the connection count while it is still boring — the room needs the baseline.
 
+The **EndpointSlice** card fills the rollout: a readiness failure removes an address from a
+slice, and the blast radius is every replica that shares whatever the probe asks about.
+That is the sentence incident 2 then spends ten minutes proving.
+
 ### 2.2 — Black Friday
 
 The queue fills. KEDA scales workers from zero; Karpenter starts buying. Measured in
 rehearsal: 0 → 4 → 8 → 16 → 24 workers while nodes went 1 → 2 → 3 → 4.
 
+KEDA polls every five seconds and the first worker still has to be scheduled, so the first
+half-minute is the autoscaler thinking about it. The **KEDA** card goes there, and it ends
+by itself the moment the first worker pod appears.
+
 **Watch:** the stat panel. Queue depth and node count on adjacent lines is the argument of
-the whole act.
+the whole incident.
 
 ### 2.3 — The cascade
 
@@ -172,12 +238,17 @@ workers that cannot connect do not delete their messages, so the messages come b
 queue gets deeper, KEDA scales harder, and Karpenter buys more machines. Throughput sits at
 zero while the node counter climbs.
 
-In rehearsal the queue passed 110,000 and stopped draining, with 19 of 24 workers
-`NotReady`.
+Measured on 2026-09-12: the queue passed 140,000, the node count reached 4, and **not one
+of the 24 workers was Ready** at the end of the step. After the fix, 10 of 12 — the two that
+are not are simply the ones KEDA created seconds earlier.
 
 **The stat panel keeps working** through all of this, deliberately: `db/seed.sql` grants
 `pg_use_reserved_connections` to the master user, so the observer holds a slot when nothing
 else can get one. If that panel ever goes dark, the grant did not run — see below.
+
+The **loop** card goes up immediately before the long window, not after it: the room needs
+the diagram to read the counters, and the panes keep turning underneath it. It is the one
+picture the whole talk is built on — give it its thirty seconds even when running late.
 
 **Vote card.** All three options add work to the database. The first also buys hardware.
 
@@ -187,8 +258,19 @@ Seven lines change: `READY_MODE`, `POOL_MAX` 4 → 3, readiness period 2s → 5s
 `maxReplicaCount` 24 → 12. Show the diff before applying it — that diff is the most useful
 slide in the talk.
 
-Then the queue drains, and Karpenter consolidates the nodes back down. Say plainly that
-Karpenter was never the problem: it did exactly what it was asked.
+The **three parts** card fills the rollout, and it is the one place to say out loud that
+only the first of the three is about probes. The other two — a pool budgeted against
+`max_connections`, a ceiling on the autoscaler — are what makes getting it wrong next time
+survivable rather than expensive.
+
+Then say plainly what the panel shows, because it is not a drain. Two thousand messages a
+second go in and twelve workers take them out one aggregation at a time, so the depth keeps
+climbing — measured at 142k → 308k across the window. What changes is everything else:
+twelve workers of twelve are Ready where twenty-four gave five, messages come off the queue
+instead of returning to it, and the node count stops moving. Karpenter consolidates the
+idle machines about two minutes later (`consolidateAfter: 2m`), which is after the talk has
+moved on — so say that it will, do not stand there waiting for it. It was never the
+problem: it did exactly what it was asked.
 
 ## When it goes wrong
 
@@ -198,23 +280,47 @@ it, and keep talking. Do not debug connectivity in front of the room.
 
 **`kubectl` starts failing with credential errors.** Every call refreshes an STS token, so a
 brief outage breaks the driver and a restored connection fixes it. Press next and carry on;
-the beat re-runs its command.
+the step re-runs its command.
 
-**The stat panel shows `-- unreachable` during act 2.** The `pg_use_reserved_connections`
+**The stat panel shows `-- unreachable` during incident 2.** The `pg_use_reserved_connections`
 grant did not run. Nothing to do mid-talk — narrate the wall from the worker logs instead,
 which say `remaining connection slots are reserved` in plain English. Re-run `task seed`
 afterwards.
 
 **Karpenter does not buy a node.** Check the spot quota first: `task preflight` reports node
 count, and the NodePool caps at 8 vCPU. If spot capacity is genuinely unavailable in both
-AZs, the beat still works — it is just slower and quieter.
+AZs, the step still works — it is just slower and quieter.
 
-**A beat has clearly failed.** `./demo 2.1` jumps straight to a beat; everything before it
-runs silently to restore state. `./demo --reset` tears the workloads down without touching
-the cluster.
+**A step has clearly failed.** `./demo 2.1` jumps straight to a step; everything before it
+runs silently to restore state.
 
-**Everything has gone wrong.** The deck is a complete talk on its own. The demo is the best
-part, not the only part.
+**Start the whole show over.** `task reset` puts the cluster into the state step 1.1
+expects, from whatever state it is in, and it works in both directions.
+
+It **removes**: the `svc` and `worker` deployments, the ScaledObject, the load generator, the
+contents of both SQS queues — waiting for the depth to actually reach zero, because a purge
+is asynchronous and incident 2 opening on a queue that is already deep is a different incident — and
+every measurement the last run left in `/tmp/probes-demo`.
+
+It **restores**: the namespace, the `svc` Service, the `db` secret out of SSM, and the
+`dbshell` pod. All of those applies are no-ops when the objects are already there, which is
+what makes the command safe to run from any state — after a smoke run, on a half-built
+cluster, or twice in a row. It is also why every "missing" hint in `task preflight` names
+this one command.
+
+It **leaves alone**: the 2M seeded rows and any Karpenter nodes still warm from the last run.
+The warm nodes are wanted — `task preflight` warns when there are none, because the first pod
+then waits on EC2 for however long EC2 feels like taking.
+
+`./demo --reset` is the same thing minus the `db` secret, which comes out of SSM rather than
+a file; the driver and `task smoke` use that path so neither depends on Task being
+installed. For a genuinely empty cluster there is `task down` and `task bootstrap`, which is
+twenty-five minutes rather than twenty seconds.
+
+**Everything has gone wrong.** `task deck:build` once, before the talk, and open
+`slides/dist/index.html`. The incident slides carry a recorded run of the same show, one cast
+per incident, so a cluster that died at step 2.2 costs you 2.2 and not the rest. Say plainly
+that it is a recording — the room forgives that instantly and forgives a stall much less.
 
 ## Afterwards
 

@@ -1,7 +1,17 @@
-# Act 1, beat 2 -- Ruslan fixes production the way Ruslan fixes production.
+# Incident 1, step 1.2 -- Ruslan fixes production the way Ruslan fixes production.
 #
-# 40 is bigger than 30, the CrashLoop stops, and the fix holds until the day the
+# 25 is bigger than 15, the CrashLoop stops, and the fix holds until the day the
 # service starts taking longer. It is a bet that tomorrow looks like today.
+#
+# These numbers used to be 40 against 30. They are half that now because the
+# failure is pure arithmetic -- initialDelay + failureThreshold x period against
+# the warmup -- and arithmetic is as true at 25 seconds as at 40. What the
+# halving bought is most of a minute of stage time, which the theory cards now
+# spend explaining the probe while the rollout settles.
+#
+# Green here:  warmup 15 < initialDelay 25, ten seconds of margin.
+# Broken next: the step sets WARMUP_SECONDS=50 against 25 + 3x5 = 40 seconds of
+# patience, so the kill lands at 40 and the pod would have been ready at 50.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,7 +39,7 @@ spec:
             - containerPort: 8080
           env:
             - name: WARMUP_SECONDS
-              value: "30"
+              value: "15"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE
@@ -41,7 +51,7 @@ spec:
             requests: { cpu: "250m", memory: "64Mi" }
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
-            initialDelaySeconds: 40
+            initialDelaySeconds: 25
             periodSeconds: 5
             timeoutSeconds: 1
             failureThreshold: 3
