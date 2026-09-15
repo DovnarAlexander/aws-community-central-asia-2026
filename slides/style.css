@@ -4,13 +4,13 @@
 
    Two jobs:
 
-   1. Serve the Naviteq faces from the repository. The theme asks for DM Sans
-      and Fira Code and fetches them from Google Fonts at page load. That works
-      everywhere except the one place this deck exists for -- a venue whose
-      network is down, where a missing webfont is a silent downgrade to the
-      system sans and the deck stops looking like Naviteq. Same reasoning as
-      the vendored asciinema player: a fallback that needs the internet is not
-      a fallback.
+   1. Serve the Naviteq faces from the repository. A missing webfont is a
+      silent downgrade to the system sans, and the one place this deck exists
+      for is a venue whose network is down -- same reasoning as the vendored
+      asciinema player: a fallback that needs the internet is not a fallback.
+      The theme now carries the same faces, but the deck keeps its own copy
+      rather than inheriting one: these four files are the ones it was laid out
+      and measured against, and a theme is a symlink that moves.
 
    2. Pin one type scale. Sizes on this deck come from the eight classes below
       rather than from whatever Tailwind step looked right on the slide being
@@ -56,9 +56,10 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
-/* The theme's mono stack starts with `ui-monospace`, which resolves on macOS
-   before Fira Code is ever considered -- so the brand mono never rendered.
-   Naming it first is the whole fix. */
+/* Fira Code first. The theme's mono stack used to start with `ui-monospace`,
+   which resolves on macOS long before Fira Code is reached, so the brand mono
+   never rendered on any machine. Fixed in the theme as well; kept here so the
+   deck does not depend on which version of it is installed. */
 .slidev-layout pre,
 .slidev-layout code,
 .slidev-layout kbd,
@@ -228,7 +229,8 @@
    Why CSS and not a component: a deck component named Logo does not shadow the
    theme's. unplugin-vue-components registers by name, sees the collision and
    drops the deck's copy, saying so once in the dev-server log and nowhere
-   else. Worth fixing upstream in naviteq-slidev; until then, this is the swap.
+   else. The theme now imports the mark instead of linking it; this can go once
+   the deck is built against a release that has that.
    ============================================================ */
 .slide-footer .footer-logo {
   content: url('/brand/naviteq-logo.svg');
