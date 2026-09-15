@@ -257,24 +257,53 @@ tasks:
       - slidev export slides/talk.md --output slides/talk.pdf --with-clicks
       - cmd: printf '\n  \033[1;32m✓\033[0m slides/talk.pdf\n\n'
 
-  deck:record:
-    desc: record one cast for the deck — task deck:record -- incident1 [start-step]
-    interactive: true
+  deck:split:
+    desc: cut the full recording into one cast per step — record once, split automatically
+    silent: true
     cmds:
       - |
-        NAME="{{index .MATCH 0}}"; NAME="${NAME:-$(echo '{{.CLI_ARGS}}' | awk '{print $1}')}"
+        SRC="${SRC:-slides/public/casts/full.cast}"
+        [ -f "$SRC" ] || {
+          printf '  no recording at %s\n' "$SRC" >&2
+          printf '  record one first: \033[1mtask deck:record -- full\033[0m\n' >&2
+          exit 1
+        }
+        # The cuts come from the step headers the driver printed into the
+        # recording, not from timecodes read off a scrubber -- so renumbering a
+        # step moves its cut with it.
+        ./scripts/cast-split.py "$SRC" slides/public/casts
+
+  deck:record:
+    desc: record one cast for the deck — task deck:record -- full, then task deck:split
+    interactive: true
+    silent: true
+    cmds:
+      - |
+        # No .MATCH here: this is a plain task, not a wildcard one, and indexing
+        # an empty .MATCH is a template error that fires before the shell runs --
+        # i.e. `task deck:record` blows up before it can print its own usage.
+        NAME=$(echo '{{.CLI_ARGS}}' | awk '{print $1}')
         START=$(echo '{{.CLI_ARGS}}' | awk '{print $2}')
-        [ -n "$NAME" ] || { printf '  usage: task deck:record -- incident1 [1.1]\n' >&2; exit 2; }
+        NAME="${NAME:-full}"
         command -v asciinema >/dev/null 2>&1 || {
           printf '  asciinema not installed: \033[1mbrew install asciinema\033[0m\n' >&2; exit 1
         }
+        # asciinema 3 dropped --cols/--rows for --window-size, and -- this is the
+        # part that bites -- it ignores the old flags instead of refusing them.
+        # A recording that silently takes the size of whatever terminal you
+        # happened to launch from does not line up with the 120x36 the deck plays
+        # at, and you find that out on the projector.
+        case "$(asciinema --version 2>/dev/null)" in
+          *\ 3.*|*\ 4.*) SIZE="--window-size 120x36" ;;
+          *)              SIZE="--cols 120 --rows 36" ;;
+        esac
         mkdir -p slides/public/casts
-        printf '\n  recording %s -- the stage opens, run the demo, then exit tmux to stop\n' "$NAME"
+        printf '\n  recording %s -- the stage opens, run the show, then exit tmux to stop\n' "$NAME"
         printf '  %sthe cast keeps text as text, so it stays sharp on a projector%s\n\n' "$(tput dim 2>/dev/null)" "$(tput sgr0 2>/dev/null)"
-        DEMO_ARGS="$START" asciinema rec --overwrite --cols 120 --rows 36 \
+        DEMO_ARGS="$START" asciinema rec --overwrite $SIZE \
           --title "probes-demo $NAME" --command ./stage \
           "slides/public/casts/$NAME.cast"
-        printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast\n\n' "$NAME"
+        printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast -- now: \033[1mtask deck:split\033[0m\n\n' "$NAME"
 
   qr:
     desc: render the closing QR into docs/qr.txt and slides/public/qr.svg — run once, both are committed

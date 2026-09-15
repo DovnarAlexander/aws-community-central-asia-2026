@@ -318,9 +318,23 @@ installed. For a genuinely empty cluster there is `task down` and `task bootstra
 twenty-five minutes rather than twenty seconds.
 
 **Everything has gone wrong.** `task deck:build` once, before the talk, and open
-`slides/dist/index.html`. The incident slides carry a recorded run of the same show, one cast
-per incident, so a cluster that died at step 2.2 costs you 2.2 and not the rest. Say plainly
-that it is a recording — the room forgives that instantly and forgives a stall much less.
+`slides/dist/index.html`. The slides carry a recorded run of the same show, cut per step, and
+each segment starts itself when its slide comes up — so the deck is the same one button the
+demo is. A cluster that died at step 2.2 costs you 2.2 and not the rest. Say plainly that it
+is a recording; the room forgives that instantly and forgives a stall much less.
+
+### Recording the fallback
+
+Record once, split automatically. The driver prints a header for every step, so the cuts are
+already in the recording and nobody reads timecodes off a scrubber:
+
+```sh
+task deck:record -- full    # opens the stage; run the show, then quit tmux
+task deck:split             # one cast per step, plus slides ready to paste
+```
+
+A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
+it after a `task smoke` has passed, against the cluster the talk will use.
 
 ## Afterwards
 
