@@ -1,0 +1,252 @@
+/* ============================================================
+   Deck-local typography and layout. Slidev auto-loads this file because it
+   sits next to talk.md, and it loads after the theme, so everything here wins.
+
+   Two jobs:
+
+   1. Serve the Naviteq faces from the repository. The theme asks for DM Sans
+      and Fira Code and fetches them from Google Fonts at page load. That works
+      everywhere except the one place this deck exists for -- a venue whose
+      network is down, where a missing webfont is a silent downgrade to the
+      system sans and the deck stops looking like Naviteq. Same reasoning as
+      the vendored asciinema player: a fallback that needs the internet is not
+      a fallback.
+
+   2. Pin one type scale. Sizes on this deck come from the eight classes below
+      rather than from whatever Tailwind step looked right on the slide being
+      written, because a deck sized slide by slide drifts a step per slide and
+      arrives at the last one two sizes off.
+
+   Both families are SIL Open Font License 1.1.
+   ============================================================ */
+
+/* DM Sans and Fira Code are variable fonts, so one file covers every weight
+   the deck uses -- there is no per-weight subset to keep in sync. The deck is
+   English; latin and latin-ext are all of it. */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: block;
+  src: url('./fonts/DMSans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: block;
+  src: url('./fonts/DMSans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: block;
+  src: url('./fonts/FiraCode-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: block;
+  src: url('./fonts/FiraCode-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* The theme's mono stack starts with `ui-monospace`, which resolves on macOS
+   before Fira Code is ever considered -- so the brand mono never rendered.
+   Naming it first is the whole fix. */
+.slidev-layout pre,
+.slidev-layout code,
+.slidev-layout kbd,
+.slidev-layout .slidev-code {
+  font-family: 'Fira Code', ui-monospace, 'Cascadia Code', monospace !important;
+  font-variant-ligatures: none;
+}
+
+/* ============================================================
+   The type scale
+
+   Eight steps, and a slide uses the name rather than the number. Sized from
+   the deck's own reading distance: this is a fallback shown on a projector at
+   the back of a conference hall, so the floor is 0.8rem and nothing below it
+   carries meaning.
+   ============================================================ */
+
+.slidev-layout h1 {
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+}
+
+/* The cover carries a title, a subtitle and a byline on an otherwise empty
+   screen. The theme's h1 is sized for a content slide and reads small there;
+   the section dividers already size their own. */
+.slidev-layout.cover h1 {
+  font-size: 3.25rem !important;
+  line-height: 1.08;
+}
+.slidev-layout.cover h2 {
+  font-size: 1.625rem !important;
+}
+
+/* One line under the title, saying what the slide is. Never two. */
+.nq-lede {
+  font-size: 1.0625rem;
+  line-height: 1.45;
+  color: var(--naviteq-text);
+  margin: 0 0 0.25rem;
+}
+
+/* The sentence the slide is for. One per slide, at the bottom. */
+.nq-statement {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+/* The head of a column inside a slide -- a checklist half, a card group. */
+.nq-subhead {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--naviteq-primary);
+  margin: 0;
+}
+
+/* Body copy inside a column or a card. */
+.nq-body { font-size: 1rem; line-height: 1.5; }
+.nq-dense { font-size: 0.875rem; line-height: 1.45; }
+
+/* A caption under a figure, or the aside that qualifies a claim. */
+.nq-note {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--naviteq-text-muted);
+}
+
+/* Arithmetic and counters -- the numbers the room is asked to check. */
+.nq-figure-number {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--naviteq-primary);
+}
+
+/* Code on a slide is read from ten metres away, not from an editor. */
+.slidev-layout .slidev-code {
+  font-size: 0.8125rem !important;
+  line-height: 1.55 !important;
+}
+.slidev-layout .slidev-code-wrapper { margin: 0; }
+
+/* Inline code sits inside a sentence and should not shout. */
+.slidev-layout :not(pre) > code {
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--naviteq-surface);
+  color: var(--naviteq-primary-dark);
+}
+
+/* Tables carry numbers that get compared across rows. */
+.slidev-layout table { font-size: 0.875rem; }
+.slidev-layout table thead th { font-weight: 600; }
+
+/* ============================================================
+   Fitting the canvas
+
+   A content slide is a column: the title and the prose take the height they
+   need, and the figure takes what is left. Sizing a diagram or a recording to
+   the room left over is the only arrangement that cannot run off the bottom
+   when a line of copy grows by one line.
+   ============================================================ */
+.slidev-layout.default .slidev-layout-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.nq-fig {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nq-fig img,
+.nq-fig svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+}
+
+/* ============================================================
+   The recorded runs
+
+   The stage is a 120x36 terminal, because that is what a projector reads, and
+   the asciinema player sizes itself from its container's width. Left to fill
+   the slide it comes out 120x36 tall as well, which is half a screen past the
+   bottom. The width below is what makes the whole frame -- title bar, terminal
+   and transport controls -- land inside the canvas. Change the recording
+   geometry in `task deck:record` and this number changes with it.
+   ============================================================ */
+.nq-cast-slide {
+  padding: 1.4rem 2.2rem 1rem !important;
+}
+
+.nq-cast-slide h1 {
+  font-size: 1.5rem !important;
+  margin-bottom: 0.5rem;
+}
+
+.nq-cast-frame {
+  width: 630px;
+  max-width: 100%;
+}
+
+/* The mockup's own padding is chrome around chrome here: the player already
+   draws a black surround. Trimming it is height the terminal gets back. */
+.nq-cast-frame .body { padding: 8px !important; }
+
+/* The player draws its own black; this keeps its corners inside the frame. */
+.nq-cast-frame .window-mockup,
+.nq-cast-frame .ap-player {
+  border-radius: 6px;
+}
+
+/* ============================================================
+   The footer wordmark
+
+   The theme's <Logo> loads the Naviteq mark from www.naviteq.io — a live fetch
+   on the footer of every slide, which means the mark quietly disappears from
+   all fifteen of them in exactly the situation this deck is kept for. The file
+   is in `public/brand/` now; this points the footer at it.
+
+   Why CSS and not a component: a deck component named Logo does not shadow the
+   theme's. unplugin-vue-components registers by name, sees the collision and
+   drops the deck's copy, saying so once in the dev-server log and nowhere
+   else. Worth fixing upstream in naviteq-slidev; until then, this is the swap.
+   ============================================================ */
+.slide-footer .footer-logo {
+  content: url('/brand/naviteq-logo.svg');
+}
+
+/* ============================================================
+   Section dividers and the closing card
+   ============================================================ */
+
+/* The QR is dark on white, so it keeps a white plate and a hairline rather
+   than sitting straight on the closing slide's tinted background. */
+.nq-qr {
+  background: #FFFFFF;
+  border: 1px solid var(--naviteq-border);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 6px 24px rgba(59, 61, 191, 0.14);
+  line-height: 0;
+}
+
+.nq-qr img { width: 172px; height: 172px; display: block; }

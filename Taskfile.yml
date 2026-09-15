@@ -249,7 +249,8 @@ tasks:
       # Recordings, clicks and mermaid animation do not survive a PDF. What
       # survives is the story and the QR, which is what a handout is for.
       - |
-        node -e "require.resolve('playwright-chromium')" >/dev/null 2>&1 || {
+        node -e "require.resolve('playwright-chromium')" >/dev/null 2>&1 || \
+        NODE_PATH="$(npm root -g)" node -e "require.resolve('playwright-chromium')" >/dev/null 2>&1 || {
           printf '  export needs Playwright once: \033[1mnpm i -g playwright-chromium\033[0m\n' >&2
           exit 1
         }
@@ -276,22 +277,60 @@ tasks:
         printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast\n\n' "$NAME"
 
   qr:
-    desc: render the closing QR into docs/qr.txt — run once, it is committed after that
+    desc: render the closing QR into docs/qr.txt and slides/public/qr.svg — run once, both are committed
     silent: true
     cmds:
       - |
-        command -v qrencode >/dev/null 2>&1 || {
-          printf '  qrencode not installed: \033[1mbrew install qrencode\033[0m\n' >&2
+        python3 -c 'import segno' >/dev/null 2>&1 || {
+          printf '  qr needs segno: \033[1mpipx install segno\033[0m (or pip install segno)\n' >&2
           exit 1
         }
-        # ASCIIUTF8 uses half blocks, so the code is square on a terminal that
-        # draws cells taller than they are wide -- ANSI output is twice as tall
-        # and does not fit the driver pane.
-        qrencode -t ASCIIUTF8 -m 1 -o docs/qr.txt "{{.DEMO_URL}}"
-        # The same code as a PNG, for the deck's closing slide.
         mkdir -p slides/public
-        qrencode -t PNG -s 8 -m 2 -o slides/public/qr.png "{{.DEMO_URL}}"
-        printf '  \033[1;32m✓\033[0m docs/qr.txt and slides/public/qr.png — %s\n' "{{.DEMO_URL}}"
+        python3 - "{{.DEMO_URL}}" <<'PY'
+        import io, sys, segno
+
+        url = sys.argv[1]
+        qr = segno.make(url, error='m')
+
+        # Half blocks, so the code comes out square on a terminal whose cells are
+        # taller than they are wide, and half the height of the ANSI rendering --
+        # which does not fit the driver pane. The glyphs draw the LIGHT modules,
+        # which is the right way round for the stage's dark terminal.
+        buf = io.StringIO()
+        qr.terminal(buf, compact=True, border=1)
+        open('docs/qr.txt', 'w').write(buf.getvalue())
+
+        # SVG rather than PNG for the closing slide: a QR is line art, and line
+        # art stays sharp at whatever size the projector is running.
+        qr.save('slides/public/qr.svg', scale=6, border=2,
+                dark='#1e1e2f', light='#ffffff')
+        PY
+        printf '  \033[1;32m✓\033[0m docs/qr.txt and slides/public/qr.svg — %s\n' "{{.DEMO_URL}}"
+
+  deck:check:
+    desc: check that every slide fits the canvas at every click — needs `task deck` running
+    silent: true
+    cmds:
+      # Slidev clips at 980x551 without a word, so a slide that grew by one line
+      # looks right in the editor and loses its last sentence on the projector.
+      - NODE_PATH="$(npm root -g)" node scripts/check-slides.mjs {{.DECK_URL | default "http://localhost:3030"}}
+
+  deck:diagrams:
+    desc: re-render slides/diagrams/*.excalidraw.json to slides/public/diagrams/*.svg
+    silent: true
+    cmds:
+      # The slides load flat SVGs, not the Excalidraw scenes. The renderer that
+      # turns one into the other comes from a CDN, and this deck has to survive a
+      # venue with no network -- so the CDN is used here, once, and what ships is
+      # the SVG. Both the sources and the output are committed.
+      - |
+        node -e "require.resolve('playwright-chromium')" >/dev/null 2>&1 || \
+        NODE_PATH="$(npm root -g)" node -e "require.resolve('playwright-chromium')" >/dev/null 2>&1 || {
+          printf '  rendering needs Playwright once: \033[1mnpm i -g playwright-chromium\033[0m\n' >&2
+          exit 1
+        }
+      - python3 scripts/build-diagrams.py
+      - NODE_PATH="$(npm root -g)" node scripts/render-diagrams.mjs
 
   preflight:
     desc: one screen of checks — run this backstage before going on
