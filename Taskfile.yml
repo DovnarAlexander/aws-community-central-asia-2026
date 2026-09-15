@@ -274,7 +274,7 @@ tasks:
         ./scripts/cast-split.py "$SRC" slides/public/casts
 
   deck:record:
-    desc: record one cast for the deck — task deck:record -- full, then task deck:split
+    desc: record one cast for the deck — task deck:record -- full (GEOM=native for the whole screen), then task deck:split
     interactive: true
     silent: true
     cmds:
@@ -288,22 +288,53 @@ tasks:
         command -v asciinema >/dev/null 2>&1 || {
           printf '  asciinema not installed: \033[1mbrew install asciinema\033[0m\n' >&2; exit 1
         }
+        # Geometry. The recording is text, not pixels, so "resolution" here is
+        # columns and rows: the cast is replayed at whatever shape it was taken
+        # in, and every column added is a column the same slide width has to
+        # divide between -- i.e. smaller glyphs in the room.
+        #
+        #   (default)     120x36, the projector shape the deck is laid out for
+        #   GEOM=native   this terminal, full screen -- the whole laptop, no crop
+        #   GEOM=160x44   an explicit size
+        #
+        # native is the one to use for a recording meant to be watched on a
+        # screen rather than thrown at a wall.
+        GEOM="${GEOM:-120x36}"
+        case "$GEOM" in
+          native|full|auto|screen)
+            # stty over tput: this reads the tty directly, so it still gives the
+            # real window size when task has its own stdout in hand.
+            SZ=$(stty size </dev/tty 2>/dev/null || true)
+            case "$SZ" in
+              [0-9]*\ [0-9]*) GEOM="${SZ#* }x${SZ% *}" ;;
+              *) printf '  cannot read this terminal size -- pass one: \033[1mGEOM=160x44\033[0m\n' >&2; exit 1 ;;
+            esac
+            ;;
+        esac
+        case "$GEOM" in
+          [0-9]*x[0-9]*) : ;;
+          *) printf '  GEOM is COLSxROWS or native, not %s\n' "$GEOM" >&2; exit 1 ;;
+        esac
         # asciinema 3 dropped --cols/--rows for --window-size, and -- this is the
         # part that bites -- it ignores the old flags instead of refusing them.
         # A recording that silently takes the size of whatever terminal you
-        # happened to launch from does not line up with the 120x36 the deck plays
+        # happened to launch from does not line up with the shape the deck plays
         # at, and you find that out on the projector.
         case "$(asciinema --version 2>/dev/null)" in
-          *\ 3.*|*\ 4.*) SIZE="--window-size 120x36" ;;
-          *)              SIZE="--cols 120 --rows 36" ;;
+          *\ 3.*|*\ 4.*) SIZE="--window-size $GEOM" ;;
+          *)              SIZE="--cols ${GEOM%x*} --rows ${GEOM#*x}" ;;
         esac
         mkdir -p slides/public/casts
-        printf '\n  recording %s -- the stage opens, run the show, then exit tmux to stop\n' "$NAME"
+        printf '\n  recording %s at %s -- the stage opens, run the show, then exit tmux to stop\n' "$NAME" "$GEOM"
         printf '  %sthe cast keeps text as text, so it stays sharp on a projector%s\n\n' "$(tput dim 2>/dev/null)" "$(tput sgr0 2>/dev/null)"
-        DEMO_ARGS="$START" asciinema rec --overwrite $SIZE \
+        # The stage's own "that font is small for a room" prompt would fire
+        # inside the recording for any GEOM past 120x36 and wait on a keypress
+        # that is now part of the cast. The size was just chosen deliberately,
+        # one line up, so the warning has nothing left to tell anyone.
+        DEMO_ARGS="$START" SKIP_FONT_CHECK=1 asciinema rec --overwrite $SIZE \
           --title "probes-demo $NAME" --command ./stage \
           "slides/public/casts/$NAME.cast"
-        printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast -- now: \033[1mtask deck:split\033[0m\n\n' "$NAME"
+        printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast (%s) -- now: \033[1mtask deck:split\033[0m\n\n' "$NAME" "$GEOM"
 
   qr:
     desc: render the closing QR into docs/qr.txt and slides/public/qr.svg — run once, both are committed

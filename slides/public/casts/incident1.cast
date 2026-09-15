@@ -1,7 +1,0 @@
-{"version": 2, "width": 120, "height": 36, "title": "placeholder - run task deck:record"}
-[0.4, "o", "\u001b[1;36m  probes-demo\u001b[0m - placeholder cast\r\n\r\n"]
-[1.2, "o", "  This slide plays a recording of the live demo.\r\n"]
-[2.0, "o", "  Record the real one with:\r\n\r\n"]
-[2.6, "o", "    \u001b[1mtask deck:record -- incident1\u001b[0m\r\n"]
-[3.2, "o", "    \u001b[1mtask deck:record -- incident2 2.1\u001b[0m\r\n\r\n"]
-[4.0, "o", "  \u001b[2mThe cast lands in slides/public/casts/ and this slide picks it up.\u001b[0m\r\n"]

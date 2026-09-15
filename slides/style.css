@@ -193,6 +193,10 @@
    bottom. The width below is what makes the whole frame -- title bar, terminal
    and transport controls -- land inside the canvas. Change the recording
    geometry in `task deck:record` and this number changes with it.
+
+   `nq-cast-full` further down is the other shape: a recording taken at the
+   whole screen (`GEOM=native task deck:record`) has too many columns to survive
+   being squeezed into 630px, so it gets the canvas instead of a window.
    ============================================================ */
 .nq-cast-slide {
   padding: 1.4rem 2.2rem 1rem !important;
@@ -216,6 +220,60 @@
 .nq-cast-frame .window-mockup,
 .nq-cast-frame .ap-player {
   border-radius: 6px;
+}
+
+/* ============================================================
+   A recording at screen size, played edge to edge
+
+   Add `nq-cast-full` next to `nq-cast-slide` on the slide and give the Cast a
+   `fit="both"`. The slide keeps no padding, no title and no window chrome,
+   because a cast recorded at 200-odd columns spends every pixel it is given on
+   glyph width -- and the canvas is 980 of them. Worth knowing before reaching
+   for this: a full-screen recording is readable on a laptop and small in a
+   room, which is the whole reason the default stays 120x36.
+   ============================================================ */
+.nq-cast-slide.nq-cast-full {
+  padding: 0 !important;
+  /* The player keeps the recording's aspect ratio, so whatever the canvas has
+     left over shows as bars beside it. The asciinema theme's own background
+     makes them read as part of the terminal instead of as a foreign margin --
+     Cast.vue reads the colour off the player and sets --nq-cast-bg from it, so
+     a light recording gets a light frame and a dark one a dark frame. The
+     fallback is the asciinema theme's own background, for the moment before
+     the player has mounted. !important because the theme paints .slidev-layout
+     white and this deck's stylesheet is not guaranteed to come after the
+     theme's. */
+  background: var(--nq-cast-bg, #121314) !important;
+}
+
+/* Every box between the slide and the player, given the full canvas. The
+   player's terminal is transform-scaled, so it contributes no intrinsic width
+   to a parent that asks the content how wide it should be -- leave any of these
+   to size themselves and the chain collapses to zero and the terminal spills
+   across the slide at its natural size. `fit: both` then has a real box to
+   scale into. .slidev-layout-content is the theme's own wrapper around the
+   slot; it is in the chain whether or not this deck mentions it. */
+.nq-cast-slide.nq-cast-full .slidev-layout-content,
+.nq-cast-slide.nq-cast-full .nq-fig,
+.nq-cast-slide.nq-cast-full .nq-cast-frame {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+/* No rounded corners on something that runs into the edges of the slide. */
+.nq-cast-slide.nq-cast-full .nq-cast .ap-player {
+  border-radius: 0;
+  height: 100%;
+}
+
+/* The theme's footer -- wordmark and page number -- is a sibling of the slide,
+   not a child of it, so it has to be reached from the container they share:
+   over a slide with no padding it lands on top of the terminal, and a cast at
+   full bleed is the one slide where nothing else should be in the frame. */
+.slidev-slide-content:has(.nq-cast-full) .slide-footer {
+  display: none;
 }
 
 /* ============================================================

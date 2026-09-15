@@ -208,29 +208,75 @@ instead, and silences the other two while it runs."
 
 ---
 layout: default
-class: nq-cast-slide
+class: nq-cast-slide nq-cast-full
 ---
-
-# Incident 1, as it ran
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <WindowMockup title="stage · incident 1" dark>
-      <Cast src="/casts/incident1.cast" :speed="1.6" />
-    </WindowMockup>
+    <Cast src="/casts/1.1.cast" fit="both" />
   </div>
 </div>
 
 <!--
-"This is the recording of that run. A slow start killed by liveness; a
-startupProbe fixes it; and then the same probe kills three healthy replicas
-under load, because it measures latency and calls the answer death."
+1.1 · Timur ships a service
 
-Play from the start if there is time. If there is not, drag to the load
-section: the RESTARTS column climbing while the service is healthy is the whole
-incident.
+"This is the recording of that run, cut per step. A slow start killed by
+liveness; a startupProbe fixes it; and then the same probe kills three healthy
+replicas under load, because it measures latency and calls the answer death."
 
-Recorded with `task deck:record -- incident1`.
+One slide per step now, not one for the incident: each segment starts itself
+when its slide comes up and stops at the end of its own step, so the clicker
+still only ever means one thing. Skipping a step is skipping a slide.
+
+Recorded with `GEOM=native task deck:record -- full`, cut by `task deck:split`.
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/1.2.cast" fit="both" />
+  </div>
+</div>
+
+<!--
+1.2 · The number, and the documentation
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/1.3.cast" fit="both" />
+  </div>
+</div>
+
+<!--
+1.3 · Production config, and real traffic
+
+The RESTARTS column climbing while the service is healthy is the whole
+incident. If incident 1 has to lose a segment to the clock, keep this one.
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/1.4.cast" fit="both" />
+  </div>
+</div>
+
+<!--
+1.4 · End of incident 1 -- before and after
 -->
 
 ---
@@ -385,29 +431,72 @@ Give this slide its thirty seconds even when running late.
 
 ---
 layout: default
-class: nq-cast-slide
+class: nq-cast-slide nq-cast-full
 ---
-
-# Incident 2, as it ran
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <WindowMockup title="stage · incident 2" dark>
-      <Cast src="/casts/incident2.cast" :speed="1.6" />
-    </WindowMockup>
+    <Cast src="/casts/2.1.cast" fit="both" />
   </div>
 </div>
 
 <!--
+2.1 · The review that let it through
+
 "Queue fills. KEDA scales workers from zero. Karpenter buys machines. Then the
 wall at fifty-seven connections — and throughput at zero while the node counter
 keeps climbing."
 
+This segment is the review itself: the probe that everyone signed off on.
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/2.2.cast" fit="both" />
+  </div>
+</div>
+
+<!--
+2.2 · Black Friday: the queue fills
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/2.3.cast" fit="both" />
+  </div>
+</div>
+
+<!--
+2.3 · The cascade, and the autoscalers help
+
 The number to point at is the node count, not the queue. A queue going up under
 load is expected; a node count going up while nothing is being processed is the
 incident.
+-->
 
-Recorded with `task deck:record -- incident2`.
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/2.4.cast" fit="both" />
+  </div>
+</div>
+
+<!--
+2.4 · Madina unhooks the probe
 -->
 
 ---

@@ -114,10 +114,10 @@ anybody. Two arguments that used to be cards are now spoken: the one about
 
 **Before the talk, once:** `task qr` writes `docs/qr.txt` for the closing card and
 `slides/public/qr.svg` for the deck — it needs `segno` (`pipx install segno`), and both
-files are committed afterwards. `task deck:record -- incident1` and
-`task deck:record -- incident2 2.1` record the fallback casts against a live cluster; they
-need `brew install asciinema`. Placeholders are committed for all three, so nothing is broken
-before you get to them.
+files are committed afterwards. `GEOM=native task deck:record -- full` records the fallback
+against a live cluster in one pass and `task deck:split` cuts it into the eight per-step
+casts the deck plays; they need `brew install asciinema`. The QR has a placeholder committed,
+so nothing is broken before you get to it.
 
 | | What | Length |
 | --- | --- | --- |
@@ -335,6 +335,22 @@ task deck:split             # one cast per step, plus slides ready to paste
 
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.
+
+The recording is text, not video, so its "resolution" is columns and rows. The default is
+120x36 — the shape a projector reads, and the shape the deck's window on a slide is sized
+for. For a recording meant to be watched on a screen rather than thrown at a wall, take the
+whole terminal instead:
+
+```sh
+GEOM=native task deck:record -- full   # this window, full screen, nothing cropped
+GEOM=160x44 task deck:record -- full   # or an explicit size
+```
+
+`task deck:split` notices when a recording is wider than a window on a slide and prints
+full-bleed slides for it — no title, no chrome, the terminal edge to edge. Both shapes play
+back in the geometry they were recorded in; the size is never pinned in the deck. Worth
+knowing before reaching for `native`: every column added is a column the same slide width
+has to divide between, so a full-screen cast is comfortable on a laptop and small in a room.
 
 ## Afterwards
 

@@ -27,6 +27,27 @@ import sys
 HEADER = re.compile(r"\n {2}(\d+\.\d+) \. ([^\r\n]{1,70})")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]|\x1b[=>]")
 
+# Step 0's header, printed before anything is clicked. Same shape as the others
+# but numbered "0" rather than "N.N", which is why HEADER does not match it and
+# why it is the thing to look for when nothing else is there.
+INTRO = re.compile(r"\n {2}0 \. ")
+
+
+def is_dark(bg):
+    """True for a terminal background the deck should frame in dark chrome.
+
+    Missing is dark: a cast with no theme in its header plays in the player's
+    default, which is dark. The threshold is plain relative luminance -- this
+    only has to tell #feffff from #1e1e2f, not grade a palette.
+    """
+    if not isinstance(bg, str) or not bg.startswith("#") or len(bg) != 7:
+        return True
+    try:
+        r, g, b = (int(bg[i:i + 2], 16) for i in (1, 3, 5))
+    except ValueError:
+        return True
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 128
+
 
 def read_cast(path):
     """Header plus events at absolute times, for asciicast v2 or v3.
@@ -134,7 +155,21 @@ def main():
     header, events, version = read_cast(src)
     steps = find_steps(events)
     if not steps:
-        print("no step headers found -- is this a recording of ./stage?", file=sys.stderr)
+        # Two very different failures produce no cuts, and "is this a recording
+        # of ./stage?" is the wrong question for the common one: a recording
+        # that stops on the title card is a recording of the stage, it just
+        # never left the intro. Telling those apart is one look for step 0's
+        # own header, which the driver prints before anything is clicked.
+        intro = strip_ansi_with_map("".join(
+            d for _, kind, d in events if kind == "o"))[0]
+        if INTRO.search(intro):
+            print("  the recording stops at the title card -- step 1.1 was never started",
+                  file=sys.stderr)
+            print("  run the show through to the end, then quit tmux to stop recording",
+                  file=sys.stderr)
+        else:
+            print("  no step headers found -- is this a recording of ./stage?",
+                  file=sys.stderr)
         return 1
 
     # Everything before the first header is the titles: who is on call.
@@ -151,17 +186,48 @@ def main():
     for step, title, length, path in written:
         print(f"  {step:5} {int(length // 60)}:{int(length % 60):02d}  {title}")
 
+    # The deck has two shapes for a cast, and which one fits is decided by the
+    # recording, not by taste: 120 columns go in a window on a slide, a
+    # screen-sized recording (GEOM=native) has too many to survive being
+    # squeezed into one and gets the whole canvas instead.
+    term = header.get("term") or {}
+    cols = term.get("cols") or header.get("width") or 120
+    full_bleed = cols > 130
+    # The window frame around a narrow cast has a light and a dark version, and
+    # which one is right is decided by the terminal that was recorded, not by
+    # the deck: a dark frame around a recording from a light terminal reads as a
+    # mistake. asciinema writes the terminal's own background into the header.
+    dark = " dark" if is_dark((term.get("theme") or {}).get("bg")) else ""
+    if full_bleed:
+        print(f"\n  recorded at {cols} columns -- wider than a window on a slide,")
+        print("  so these come out full-bleed (see nq-cast-full in slides/style.css)")
+
     print("\n  --- slides, ready to paste ---\n")
     for step, title, _, _ in written:
         if step == "0":
             continue
-        print(f"""---
+        if full_bleed:
+            print(f"""---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/{step}.cast" fit="both" />
+  </div>
+</div>
+
+<!-- {step} · {title} -->
+""")
+        else:
+            print(f"""---
 layout: default
 ---
 
 # {step} · {title}
 
-<WindowMockup title="stage · {step}" dark>
+<WindowMockup title="stage · {step}"{dark}>
   <Cast src="/casts/{step}.cast" />
 </WindowMockup>
 """)

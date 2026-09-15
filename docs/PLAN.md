@@ -464,7 +464,11 @@ network being down.
   the sources open in Excalidraw or the Obsidian plugin if a picture needs editing by hand.
 - The recordings are sized by `.nq-cast-frame` in `style.css`: the stage is a 120x36
   terminal, and left to fill the slide the player comes out half a screen past the bottom.
-  That width and the recording geometry in `task deck:record` move together.
+  That width and the default recording geometry in `task deck:record` move together. A cast
+  recorded at screen size instead (`GEOM=native`) has too many columns for that window and
+  takes `nq-cast-full` — the whole canvas, no chrome — which `task deck:split` emits on its
+  own once it sees the wider header. Either way the player reads its geometry out of the
+  cast, so a recording is never replayed in a shape it did not run in.
 
 Slide fit is checked rather than eyeballed — every slide, at every click, against the 980x551
 canvas.
