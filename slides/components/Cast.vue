@@ -6,10 +6,12 @@
 // is the venue network being down. A fallback that needs the internet is not a
 // fallback.
 //
-// Casts are per segment, not one file for the whole show: if the cluster dies
-// at step 2.2 the talk plays 2.2 and carries on, instead of switching to a
-// thirty-minute video and starting from the titles.
+// It starts itself when its slide comes up and stops when the slide goes away,
+// so the whole deck is one button: the clicker advances the slide, the segment
+// on it plays, the clicker advances again. Nothing on stage needs a mouse, and
+// no press ever means two different things.
 import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { onSlideEnter, onSlideLeave } from '@slidev/client'
 
 const props = defineProps({
   src:      { type: String, required: true },
@@ -18,13 +20,15 @@ const props = defineProps({
   cols:     { type: Number, default: 120 },
   rows:     { type: Number, default: 36 },
   speed:    { type: Number, default: 1 },
-  autoplay: { type: Boolean, default: false },
+  // Off only for a segment you want to talk over before starting it.
+  autoplay: { type: Boolean, default: true },
   startAt:  { type: [String, Number], default: 0 },
-  poster:   { type: String, default: 'npt:0:03' },
+  poster:   { type: String, default: 'npt:0:02' },
 })
 
 const host = ref(null)
 let player = null
+let wantsPlay = false
 
 function loadPlayer() {
   return new Promise((resolve, reject) => {
@@ -44,6 +48,14 @@ function loadPlayer() {
   })
 }
 
+function start() {
+  if (!player) { wantsPlay = true; return }
+  // Always from the top: a segment half-played from the last rehearsal is a
+  // worse surprise on stage than one that starts over.
+  player.seek(props.startAt || 0)
+  player.play()
+}
+
 onMounted(async () => {
   try {
     await loadPlayer()
@@ -55,7 +67,7 @@ onMounted(async () => {
     cols: props.cols,
     rows: props.rows,
     speed: props.speed,
-    autoPlay: props.autoplay,
+    autoPlay: false,
     startAt: props.startAt || undefined,
     poster: props.poster,
     fit: 'width',
@@ -63,11 +75,16 @@ onMounted(async () => {
     // Capping dead air keeps a recorded run watchable without cutting anything:
     // the countdowns redraw every second, so they are not idle and stay intact.
     idleTimeLimit: 2,
+    // Left on deliberately. Autoplay covers the rehearsed path; the controls are
+    // what you reach for when a question sends you back to the middle of a run.
     controls: true,
     theme: 'asciinema',
   })
+  if (wantsPlay || props.autoplay) start()
 })
 
+onSlideEnter(() => { if (props.autoplay) start() })
+onSlideLeave(() => player?.pause?.())
 onBeforeUnmount(() => player?.dispose?.())
 </script>
 

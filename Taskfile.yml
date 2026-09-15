@@ -257,8 +257,24 @@ tasks:
       - slidev export slides/talk.md --output slides/talk.pdf --with-clicks
       - cmd: printf '\n  \033[1;32m✓\033[0m slides/talk.pdf\n\n'
 
+  deck:split:
+    desc: cut the full recording into one cast per step — record once, split automatically
+    silent: true
+    cmds:
+      - |
+        SRC="${SRC:-slides/public/casts/full.cast}"
+        [ -f "$SRC" ] || {
+          printf '  no recording at %s\n' "$SRC" >&2
+          printf '  record one first: \033[1mtask deck:record -- full\033[0m\n' >&2
+          exit 1
+        }
+        # The cuts come from the step headers the driver printed into the
+        # recording, not from timecodes read off a scrubber -- so renumbering a
+        # step moves its cut with it.
+        ./scripts/cast-split.py "$SRC" slides/public/casts
+
   deck:record:
-    desc: record one cast for the deck — task deck:record -- incident1 [start-step]
+    desc: record one cast for the deck — task deck:record -- full, then task deck:split
     interactive: true
     cmds:
       - |

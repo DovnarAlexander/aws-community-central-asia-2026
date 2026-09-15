@@ -60,3 +60,6 @@ infra/local.hcl
 slides/dist/
 slides/talk.pdf
 slides/node_modules/
+
+.env
+slides/public/casts/full.cast
