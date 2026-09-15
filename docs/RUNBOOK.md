@@ -330,11 +330,20 @@ already in the recording and nobody reads timecodes off a scrubber:
 
 ```sh
 task deck:record -- full    # opens the stage; run the show, then quit tmux
-task deck:split             # one cast per step, plus slides ready to paste
+task deck:split             # step boundaries, plus slides ready to paste
 ```
 
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.
+
+What `deck:split` writes is `full.cuts.json` — a boundary per step — and the slides ask for
+a step by name: `<Cast src="/casts/full.cast" step="1.4" />`. One recording ships, and each
+slide plays its range out of it. Cutting each step into a cast of its own is the obvious
+thing and it is wrong: an asciicast is a stream of terminal writes, so a file that starts
+mid-stream starts on a blank screen, and everything tmux had drawn before the cut — the pane
+borders, k9s, the load panel — is simply missing until something repaints it. Seeking into
+the whole recording makes the player replay the history instead, which costs single-digit
+milliseconds and opens the step with the whole stage on screen.
 
 The recording is text, not video, so its "resolution" is columns and rows. The default is
 120x36 — the shape a projector reads, and the shape the deck's window on a slide is sized

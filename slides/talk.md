@@ -213,7 +213,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/1.1.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="1.1" fit="both" />
   </div>
 </div>
 
@@ -238,7 +238,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/1.2.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="1.2" fit="both" />
   </div>
 </div>
 
@@ -253,7 +253,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/1.3.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="1.3" fit="both" />
   </div>
 </div>
 
@@ -271,7 +271,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/1.4.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="1.4" fit="both" />
   </div>
 </div>
 
@@ -436,7 +436,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/2.1.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="2.1" fit="both" />
   </div>
 </div>
 
@@ -457,7 +457,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/2.2.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="2.2" fit="both" />
   </div>
 </div>
 
@@ -472,7 +472,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/2.3.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="2.3" fit="both" />
   </div>
 </div>
 
@@ -491,7 +491,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/2.4.cast" fit="both" />
+    <Cast src="/casts/full.cast" step="2.4" fit="both" />
   </div>
 </div>
 

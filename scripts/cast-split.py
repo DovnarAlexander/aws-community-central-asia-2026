@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut one recording of the show into one cast per step.
+"""Find the step boundaries in one recording of the show.
 
 Record once, split automatically. The driver prints a header for every step --
 
@@ -13,8 +13,18 @@ with it, which hand-written timecodes would not.
 
     scripts/cast-split.py slides/public/casts/full.cast slides/public/casts
 
-Writes <id>.cast per step, rebased so each one starts at zero, and prints a
-Slidev fragment with one slide per segment.
+Writes <name>.cuts.json next to the recording and prints a Slidev fragment with
+one slide per step.
+
+Boundaries, not files. Cutting each step into a cast of its own is the obvious
+thing to do and it is wrong: an asciicast is a stream of terminal writes, not a
+sequence of frames, so a file that starts mid-stream starts on a blank terminal.
+Everything tmux had drawn before the cut -- the pane borders, k9s, the load
+panel -- is simply missing from the segment until something happens to repaint
+it, which for a quiet pane is never. The deck plays ranges of the whole
+recording instead: the player rebuilds the screen by replaying the history when
+it seeks, in single-digit milliseconds, and the step opens with the whole stage
+on it.
 """
 
 import json
@@ -31,6 +41,12 @@ ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]|\x1b[=>]")
 # but numbered "0" rather than "N.N", which is why HEADER does not match it and
 # why it is the thing to look for when nothing else is there.
 INTRO = re.compile(r"\n {2}0 \. ")
+
+# The dead-air cap the deck plays with. Both the cut times and the player have
+# to use the same number or the cuts point at the wrong minute -- see read_cast
+# -- so it is written into the manifest and Cast.vue takes it from there rather
+# than carrying its own copy.
+IDLE_TIME_LIMIT = 2.0
 
 
 def is_dark(bg):
@@ -50,11 +66,21 @@ def is_dark(bg):
 
 
 def read_cast(path):
-    """Header plus events at absolute times, for asciicast v2 or v3.
+    """Header plus events at the times the player will put them on screen.
 
     asciinema 3 records v3, where each event carries the gap since the previous
     one rather than a timestamp. Everything below wants absolute times, so the
     difference is absorbed here and nowhere else.
+
+    Player time, not recording time. The deck plays with idleTimeLimit, which
+    shortens every gap longer than the limit -- this show waits on nodes being
+    bought and rollouts settling, and capping that takes nineteen minutes of
+    recording down to fourteen of watching. The player's clock therefore is not
+    the recording's clock, and a cut measured in recording seconds lands minutes
+    away from its step. Gaps are capped here for the same reason and by the same
+    rule, so the numbers written out are the ones a seek will honour. The limit
+    travels in the manifest, so the deck cannot quietly play with a different
+    one.
     """
     lines = path.read_text().splitlines()
     header = json.loads(lines[0])
@@ -62,15 +88,15 @@ def read_cast(path):
     if version not in (2, 3):
         raise SystemExit(f"  asciicast v{version} is not a format this knows how to cut")
 
-    events, clock = [], 0.0
+    events, clock, prev = [], 0.0, 0.0
     for ln in lines[1:]:
         if not ln.strip() or not ln.startswith("["):
             continue
         t, kind, data = json.loads(ln)
-        if version == 3:
-            clock += t
-            t = clock
-        events.append((round(t, 6), kind, data))
+        gap = t if version == 3 else (t - prev)
+        prev = t
+        clock += min(gap, IDLE_TIME_LIMIT)
+        events.append((round(clock, 6), kind, data))
     return header, events, version
 
 
@@ -124,26 +150,6 @@ def find_steps(events):
     return found
 
 
-def write_segment(header, events, start, end, path, title, version):
-    """One segment, rebased to zero, in the same asciicast version it came from."""
-    out = dict(header)
-    out["title"] = title
-    # A timestamp copied from the full recording would date every segment to the
-    # moment the whole run started, which is wrong for all but the first.
-    out.pop("timestamp", None)
-    with path.open("w") as f:
-        f.write(json.dumps(out) + "\n")
-        prev = start
-        for t, kind, data in events:
-            if t < start or (end is not None and t >= end):
-                continue
-            # v3 wants the gap since the previous kept event -- measured from the
-            # cut, so a segment never opens with the pause that preceded it.
-            stamp = (t - prev) if version == 3 else (t - start)
-            prev = t
-            f.write(json.dumps([round(stamp, 6), kind, data]) + "\n")
-
-
 def main():
     if len(sys.argv) < 3:
         print(__doc__.strip(), file=sys.stderr)
@@ -152,7 +158,7 @@ def main():
     outdir = pathlib.Path(sys.argv[2])
     outdir.mkdir(parents=True, exist_ok=True)
 
-    header, events, version = read_cast(src)
+    header, events, _ = read_cast(src)
     steps = find_steps(events)
     if not steps:
         # Two very different failures produce no cuts, and "is this a recording
@@ -173,18 +179,41 @@ def main():
         return 1
 
     # Everything before the first header is the titles: who is on call.
-    cuts = [(0.0, "0", "Who is on call")] + steps
-    written = []
-    for i, (start, step, title) in enumerate(cuts):
-        end = cuts[i + 1][0] if i + 1 < len(cuts) else None
-        path = outdir / f"{step}.cast"
-        write_segment(header, events, start, end, path, f"{step} . {title}", version)
-        length = (end - start) if end else (events[-1][0] - start if events else 0)
-        written.append((step, title, length, path))
+    marks = [(0.0, "0", "Who is on call")] + steps
+    total = events[-1][0] if events else 0.0
+    cuts = []
+    for i, (start, step, title) in enumerate(marks):
+        # The last step has no end: it runs to wherever the recording stops, and
+        # a number here would only be the same thing said less honestly.
+        end = marks[i + 1][0] if i + 1 < len(marks) else None
+        cuts.append({
+            "step": step,
+            "title": title,
+            "from": round(start, 3),
+            "to": None if end is None else round(end, 3),
+        })
 
-    print(f"  {src.name} -> {len(written)} segments\n")
-    for step, title, length, path in written:
-        print(f"  {step:5} {int(length // 60)}:{int(length % 60):02d}  {title}")
+    manifest = outdir / f"{src.stem}.cuts.json"
+    manifest.write_text(json.dumps({
+        "source": src.name,
+        "idle_time_limit": IDLE_TIME_LIMIT,
+        "duration": round(total, 3),
+        "cuts": cuts,
+    }, indent=2) + "\n")
+
+    print(f"  {src.name} -> {len(cuts)} steps -> {manifest}\n")
+    for c in cuts:
+        length = (c["to"] if c["to"] is not None else total) - c["from"]
+        print(f"  {c['step']:5} {int(length // 60)}:{int(length % 60):02d}  {c['title']}")
+
+    # Per-step casts from the days this script wrote files. Nothing references
+    # them once the slides ask for steps, and a stale 1.1.cast sitting next to a
+    # live manifest is exactly the sort of thing that gets debugged for an hour.
+    stale = sorted(p for p in outdir.glob("*.cast")
+                   if p != src and re.fullmatch(r"\d+(\.\d+)?", p.stem))
+    if stale:
+        print("\n  these are left over from the old per-step split and are no longer read:")
+        print("    " + "  ".join(p.name for p in stale))
 
     # The deck has two shapes for a cast, and which one fits is decided by the
     # recording, not by taste: 120 columns go in a window on a slide, a
@@ -203,7 +232,8 @@ def main():
         print("  so these come out full-bleed (see nq-cast-full in slides/style.css)")
 
     print("\n  --- slides, ready to paste ---\n")
-    for step, title, _, _ in written:
+    for c in cuts:
+        step, title = c["step"], c["title"]
         if step == "0":
             continue
         if full_bleed:
@@ -214,7 +244,7 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/{step}.cast" fit="both" />
+    <Cast src="/casts/{src.name}" step="{step}" fit="both" />
   </div>
 </div>
 
@@ -228,7 +258,7 @@ layout: default
 # {step} · {title}
 
 <WindowMockup title="stage · {step}"{dark}>
-  <Cast src="/casts/{step}.cast" />
+  <Cast src="/casts/{src.name}" step="{step}" />
 </WindowMockup>
 """)
     return 0

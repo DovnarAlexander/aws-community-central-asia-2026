@@ -56,9 +56,9 @@ infra/local.hcl
 
 # The deck builds from slides/talk.md; the build and the export do not belong in
 # git. The casts and the vendored player do -- they are the fallback, and a
-# fallback you have to rebuild on the day is not one. That includes full.cast,
-# the uncut run the per-step casts are sliced out of: re-cutting it is a second
-# of `task deck:split`, re-recording it is a live cluster and half an hour.
+# fallback you have to rebuild on the day is not one. full.cast is the whole of
+# it -- the deck plays ranges of that one recording rather than a file per step,
+# so it is not a build artefact, it is the artefact.
 slides/dist/
 slides/talk.pdf
 slides/node_modules/

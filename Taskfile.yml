@@ -258,7 +258,7 @@ tasks:
       - cmd: printf '\n  \033[1;32m✓\033[0m slides/talk.pdf\n\n'
 
   deck:split:
-    desc: cut the full recording into one cast per step — record once, split automatically
+    desc: find the step boundaries in the full recording — record once, split automatically
     silent: true
     cmds:
       - |
@@ -271,6 +271,14 @@ tasks:
         # The cuts come from the step headers the driver printed into the
         # recording, not from timecodes read off a scrubber -- so renumbering a
         # step moves its cut with it.
+        #
+        # What comes out is a manifest of boundaries, not a cast per step. A
+        # segment cut into its own file starts on a blank terminal: an asciicast
+        # is a stream of writes, so everything tmux drew before the cut -- the
+        # pane borders, k9s, the load panel -- is missing from it until
+        # something repaints, which for a quiet pane is never. The deck plays
+        # ranges of the one recording, and the player rebuilds the screen when
+        # it seeks.
         ./scripts/cast-split.py "$SRC" slides/public/casts
 
   deck:record:

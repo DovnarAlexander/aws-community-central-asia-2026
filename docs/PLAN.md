@@ -469,13 +469,21 @@ network being down.
   takes `nq-cast-full` — the whole canvas, no chrome — which `task deck:split` emits on its
   own once it sees the wider header. Either way the player reads its geometry out of the
   cast, so a recording is never replayed in a shape it did not run in.
+- One recording ships, not one per step. `task deck:split` writes `full.cuts.json` — a
+  boundary per step — and a slide names its step rather than a file. A segment cut into its
+  own cast starts on a blank terminal, because an asciicast is a stream of writes and not a
+  sequence of frames: the pane borders, k9s and the load panel were drawn before the cut and
+  never repaint, so they are absent from the segment. Seeking into the whole recording makes
+  the player rebuild the screen from the history in single-digit milliseconds. The cut times
+  are measured with the same `idleTimeLimit` the deck plays with, and the manifest carries it
+  so the two cannot drift — capping dead air moves the player's clock away from the
+  recording's, and a cut in recording seconds lands minutes from its step.
 
 Slide fit is checked rather than eyeballed — every slide, at every click, against the 980x551
 canvas.
 
-Outstanding: `task deck:record` for the real casts (`brew install asciinema`), and
-`npm i -g playwright-chromium` before the first PDF export or diagram render. Placeholder
-casts are committed so the deck builds and presents today; the QR is real.
+Outstanding: `npm i -g playwright-chromium` before the first PDF export, diagram render or
+`task deck:check`. The recording and the QR are real.
 
 ### 8. Contingency
 The original demo's proudest claim was that it needed no internet. This one cannot make that
