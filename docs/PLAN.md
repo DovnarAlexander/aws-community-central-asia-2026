@@ -479,6 +479,12 @@ network being down.
   so the two cannot drift — capping dead air moves the player's clock away from the
   recording's, and a cut in recording seconds lands minutes from its step.
 
+- The stage runs tmux without left/right margins. tmux fences the cursor into a pane's column
+  band to redraw it; the deck's player does not implement that and takes the writes at full
+  width, so a recording plays back with the right-hand panes smeared across the screen. It is
+  invisible until it is on a slide, so `scripts/cast-lint.py` looks for it at record time and
+  `task deck:record:probe` settles it in ten seconds without a cluster.
+
 Slide fit is checked rather than eyeballed — every slide, at every click, against the 980x551
 canvas.
 

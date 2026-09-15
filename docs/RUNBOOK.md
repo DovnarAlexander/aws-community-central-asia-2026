@@ -336,6 +336,22 @@ task deck:split             # step boundaries, plus slides ready to paste
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.
 
+Before recording the show for real, spend ten seconds on:
+
+```sh
+GEOM=native task deck:record:probe   # opens the stage, closes itself, says yes or no
+```
+
+It is checking for one thing, and it is the one thing that looks fine in the terminal and
+wrong in the deck. tmux draws a side-by-side layout by fencing the cursor into a pane's
+column band — DECSLRM, `\033[105;167s` — and writing inside it. A real terminal honours the
+fence; the deck's player does not implement it at all, and takes every one of those writes
+at full width instead. The recording is not damaged, it is asking for something the player
+cannot do, and nothing downstream can undo it: the right-hand panes come out smeared across
+the screen, never cleared, with the stat panel drawn four times down the page. `./stage`
+turns margins off so this does not happen; the probe is how you find out it worked on your
+terminal, and `task deck:record` refuses to finish quietly if it did not.
+
 What `deck:split` writes is `full.cuts.json` — a boundary per step — and the slides ask for
 a step by name: `<Cast src="/casts/full.cast" step="1.4" />`. One recording ships, and each
 slide plays its range out of it. Cutting each step into a cast of its own is the obvious

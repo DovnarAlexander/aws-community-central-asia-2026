@@ -60,6 +60,18 @@ fi
 
 tmux new-session -d -s "$SESSION" -c "$DEMO_ROOT" -x "$(tput cols)" -y "$(tput lines)"
 
+# No left/right margins, ever. tmux draws a side-by-side layout by fencing the
+# cursor into one pane's column band -- DECSLRM, `\033[105;167s` -- and writing
+# inside it. A real terminal honours that; asciinema-player's does not, and takes
+# every one of those writes at full width instead, so a recording of this stage
+# plays back with the right-hand panes smeared across the screen and never
+# cleared. Removing the capabilities is what stops tmux reaching for it.
+#
+# On for the live stage too, deliberately: the show and its recording should be
+# the same picture, and the cost is tmux redrawing a pane line by line instead of
+# in one fenced block, which nobody has ever been able to see.
+tmux set-option -t "$SESSION" -ga terminal-overrides ',*:Cmg@:Clmg@:Enmg@:Dsmg@'
+
 # Nothing on screen except the demo.
 tmux set-option -t "$SESSION" -g status off
 tmux set-option -t "$SESSION" -g mouse on

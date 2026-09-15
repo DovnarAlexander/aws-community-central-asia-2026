@@ -279,7 +279,45 @@ tasks:
         # something repaints, which for a quiet pane is never. The deck plays
         # ranges of the one recording, and the player rebuilds the screen when
         # it seeks.
+        # A scrambled recording splits perfectly well into scrambled steps.
+        ./scripts/cast-lint.py "$SRC" || exit 1
         ./scripts/cast-split.py "$SRC" slides/public/casts
+
+  deck:record:probe:
+    desc: ten-second check that a recording of the stage will play back clean — no cluster needed
+    interactive: true
+    silent: true
+    cmds:
+      # The margin problem is a property of this terminal and this tmux, not of
+      # the show, so it can be settled without running the show: build the stage,
+      # let it draw for a few seconds, and look at what came out. The panes will
+      # be full of errors without a cluster -- that is fine, the question is how
+      # tmux drew them, not what they said.
+      - |
+        command -v asciinema >/dev/null 2>&1 || {
+          printf '  asciinema not installed: \033[1mbrew install asciinema\033[0m\n' >&2; exit 1
+        }
+        GEOM="${GEOM:-120x36}"
+        case "$GEOM" in
+          native|full|auto|screen)
+            SZ=$(stty size </dev/tty 2>/dev/null || true)
+            case "$SZ" in
+              [0-9]*\ [0-9]*) GEOM="${SZ#* }x${SZ% *}" ;;
+              *) printf '  cannot read this terminal size -- pass one: \033[1mGEOM=160x44\033[0m\n' >&2; exit 1 ;;
+            esac
+            ;;
+        esac
+        OUT="$(mktemp -t cast-probe).cast"
+        printf '\n  probing at %s -- the stage opens for eight seconds and closes itself\n\n' "$GEOM"
+        ( sleep 8; tmux kill-session -t probes-probe 2>/dev/null ) &
+        SKIP_FONT_CHECK=1 SESSION=probes-probe DEMO_STATE=/tmp/probes-probe \
+          asciinema rec --overwrite --window-size "$GEOM" \
+          --title 'margin probe' --command ./stage "$OUT" >/dev/null 2>&1
+        wait 2>/dev/null || true
+        ./scripts/cast-lint.py "$OUT"
+        STATUS=$?
+        rm -f "$OUT"
+        exit $STATUS
 
   deck:record:
     desc: record one cast for the deck — task deck:record -- full (GEOM=native for the whole screen), then task deck:split
@@ -342,6 +380,11 @@ tasks:
         DEMO_ARGS="$START" SKIP_FONT_CHECK=1 asciinema rec --overwrite $SIZE \
           --title "probes-demo $NAME" --command ./stage \
           "slides/public/casts/$NAME.cast"
+        # Margins are the one way a recording of this stage comes out looking
+        # fine in the terminal and scrambled in the deck, and the difference is
+        # invisible until it is on a slide. Checked here, while the cluster is
+        # still up and recording again is cheap.
+        ./scripts/cast-lint.py "slides/public/casts/$NAME.cast" || exit 1
         printf '\n  \033[1;32m✓\033[0m slides/public/casts/%s.cast (%s) -- now: \033[1mtask deck:split\033[0m\n\n' "$NAME" "$GEOM"
 
   qr:
