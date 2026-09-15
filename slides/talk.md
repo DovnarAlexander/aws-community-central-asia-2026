@@ -1,5 +1,12 @@
 ---
 theme: naviteq-slidev
+# Declared here rather than inherited from the theme's defaults. When the addon
+# is not registered at the moment a slide compiles, <WindowMockup> falls through
+# to unplugin-icons, which reads it as the icon `wi/ndow-mockup` and fails with
+# a message that says nothing about addons. Naming it is one line and takes the
+# whole class of failure off the table.
+addons:
+  - slidev-addon-window-mockup
 title: The probe that killed itself
 info: |
   AWS Community Day Central Asia 2026.
