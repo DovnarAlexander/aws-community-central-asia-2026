@@ -113,7 +113,7 @@ anybody. Two arguments that used to be cards are now spoken: the one about
 `initialDelaySeconds` in 1.2, and the closing lines of 2.4.
 
 **Before the talk, once:** `task qr` writes `docs/qr.txt` for the closing card and
-`slides/public/qr.png` for the deck — it needs `qrencode` (`brew install qrencode`), and both
+`slides/public/qr.svg` for the deck — it needs `segno` (`pipx install segno`), and both
 files are committed afterwards. `task deck:record -- incident1` and
 `task deck:record -- incident2 2.1` record the fallback casts against a live cluster; they
 need `brew install asciinema`. Placeholders are committed for all three, so nothing is broken
