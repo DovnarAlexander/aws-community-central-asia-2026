@@ -275,18 +275,42 @@ b_0() {
 # The postmortem this would have got, had anyone written one.
 DEMO_URL="${DEMO_URL:-https://github.com/DovnarAlexander/aws-community-central-asia-2026}"
 
+# What this run actually bought. The card used to say eighteen EC2 instances,
+# which no run of this show has ever produced -- twenty-four workers at 250m is
+# six cores, so Karpenter buys a handful and the counter on the right says so
+# all the way through. A talk that opens with "a real cluster, real failures,
+# nothing is recorded" cannot close on a number that counter never reached.
+#
+# mark_nodes wrote the real one during incident 2. With nothing to read -- the
+# show started midway, or incident 2 was skipped -- the line drops the count
+# rather than inventing one.
+_nodes_bought() {
+  local n=''
+  [ -f "$DEMO_STATE/incident2-before.nodes" ] && n=$(cat "$DEMO_STATE/incident2-before.nodes" 2>/dev/null)
+  case "$n" in
+    ''|*[!0-9]*) printf 'EC2 machines, bought while nothing was being served' ;;
+    1)           printf 'one EC2 machine, bought while nothing was being served' ;;
+    *)           printf '%s EC2 machines, bought while nothing was being served' "$n" ;;
+  esac
+}
+
 finale() {
   card 'POSTMORTEM' \
     "$(_col 15 'Incident')service down for 40 minutes" \
     "$(_col 15 'Response')added replicas" \
     "$(_col 15 'What helped')nothing" \
-    "$(_col 15 'Also')18 EC2 instances, bought during the outage" \
+    "$(_col 15 'Also')$(_nodes_bought)" \
     "$(_col 15 'Root cause')a probe asking about somebody else's health" \
     "$(_col 15 'At fault')Timur 0 . Ruslan 0 . kubelet 0" \
     "$(_col 15 'Action item')Madina reviews the probes now"
 
   ruslan "\"Nobody at fault\" is not a real postmortem."
   madina "It is. The line that caused it was not written by anyone. It was copied."
+  # His method is the through-line of both incidents and it has never once lost
+  # out loud. The titles gave him "any production problem is a number in a YAML
+  # file"; this is where he finds out.
+  ruslan "Both times I reached for the number."
+  madina "It was never the number."
   madina "I wrote all of this down, by the way."
 
   bigsay "Probes are the only code that can kill a healthy service -- and now bill you for it."

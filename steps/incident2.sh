@@ -14,10 +14,13 @@ M2=k8s/incident2
 b_2_1() {
   say "In the first incident a pod killed itself. In this one every replica leaves the load balancer at once, and the autoscalers try to help."
   say ""
-  say "A month has passed. Timur has grown, and now writes deliberately."
+  say "A month has passed."
   say ""
-  timur "Rewrote readiness. It is honest now."
-  timur "Every call goes to the database and checks the data is actually readable."
+  # His growth used to be announced by the narrator, which is the one change in
+  # the show that nobody had to earn. He says it himself, in her words, and the
+  # irony arrives without help: he did everything right this time.
+  timur "I did not copy this one. I read the documentation and wrote it myself."
+  timur "Readiness is honest now. Every call goes to the database and checks the data is actually readable."
   # The probe numbers do not move in this step at all -- the readiness probe is
   # the same 5/1/3 it was at the end of incident 1. What changed is inside the
   # service, and that is the whole reason this incident happens.
@@ -35,7 +38,10 @@ b_2_1() {
   # passed review." and the note appears anyway. The room gets the objection she
   # swallowed, which is also the objection the next twelve minutes are about.
   say ""
-  say "She does not say it out loud. She writes it down."
+  # The inversion of her arc, and the room will miss it unless something points
+  # at it: three times in incident 1 she said the thing and three times it went
+  # nowhere. She has drawn the obvious conclusion.
+  say "She said it out loud three times in the first incident. This time she writes it down."
   teach_madina 'HOW A READINESS FAILURE ACTUALLY REMOVES A POD' \
     'The Service does not route to pods. It routes to an EndpointSlice,' \
     'and readiness is what puts an address in it or takes it out.' \
@@ -115,6 +121,11 @@ b_2_3() {
   madina "And a worker that cannot reach the database does not delete its message."
   madina "The message comes back. The queue gets deeper."
   keda "Queue is deeper. Adding workers."
+  # Both were introduced in the titles and both go quiet through the worst of
+  # it. The wall is the centre of the cascade and the invoice is its point, so
+  # the two characters who own them say so while it is happening.
+  pg "I am refusing new connections now. Everyone who has one is holding it."
+  karpenter "More Pending pods. Buying. Nobody has told me to stop."
   madina "That is the loop."
 
   # The one picture the whole talk is built on. It goes up before the window
@@ -159,10 +170,10 @@ b_2_4() {
   madina "The probe reads the flag. That is all."
   timur "And if the database really does go down?"
   madina "The flag goes stale and the pod honestly leaves the load balancer."
-  ruslan "All sixteen at once?"
+  ruslan "All twenty-four at once?"
   madina "One at a time, as each flag expires. And the database gets not one extra query."
   say ""
-  say "The probe now costs O(1). Sixteen replicas or a hundred and sixty, it is the same."
+  say "The probe now costs O(1). Twenty-four replicas or two hundred and forty, it is the same."
   madina "Two more things. The pool is budgeted against the wall: three connections, not four."
   madina "And KEDA gets a ceiling. An autoscaler without one is a way to turn an incident into an invoice."
   # Two of the three parts of the fix are changes to the service, not to a

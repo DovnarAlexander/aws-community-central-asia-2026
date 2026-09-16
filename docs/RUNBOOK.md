@@ -213,8 +213,11 @@ checks miss, and kubelet restarts three healthy replicas for being busy.
 `HEALTHZ_MODE=local`, and the liveness numbers get slack. The before/after table is built
 from two real measurements — do not paraphrase it, read the numbers.
 
-**The answer to the vote** is option four: the question the probe was asking. It asked "are
-you answering quickly" and punished the answer as though it meant "are you dead".
+**The answer to the vote** is Madina's first line of 1.4 — none of the three, it was the
+wrong question. The probe asked "are you answering quickly" and punished the answer as
+though it meant "are you dead". It used to be answered twice, once there and once as a
+closing card six minutes later, which read as though the vote were still open; the incident
+now ends on "it stopped shooting at itself", the same shape incident 2 uses.
 
 ## Incident 2 — the probe that buys EC2 instances
 

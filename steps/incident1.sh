@@ -26,6 +26,11 @@ b_1_1() {
   timur "Copied one out of an article. It was right there in the example."
   madina "What are the numbers?"
   timur "initialDelay 2, period 1, timeout 1, three misses. Straight out of the example."
+  # She asked for the numbers, so she gets to start the sum. Being cut off two
+  # words in is what makes the room finish it -- and from here on the room knows
+  # something the stage does not, which is the only tension incident 1 has.
+  madina "Two, plus three misses a second apart, is..."
+  ruslan "Ship it."
   show "$M/10-liveness-naive.yaml"
 
   run "envsubst < $M/10-liveness-naive.yaml | kubectl apply -f -"
@@ -95,21 +100,26 @@ b_1_2() {
 
   run "envsubst < $M/11-liveness-initialdelay.yaml | kubectl apply -f -"
 
-  # This one used to be a card and is better as an argument, in her voice: it
-  # has nothing to look up in it, only a claim to make. The rollout settles
-  # underneath while she makes it.
+  # One claim here, the reasons later. Her case against initialDelaySeconds used
+  # to be made in full at this point, which meant the room knew why the next
+  # rollout would die before it died -- five lines of explanation spending the
+  # only surprise the step has. The claim is planted now and collected after the
+  # cluster has proved it.
   madina "It holds because nothing changed. Not because the number is right."
-  madina "A cold cache. A noisier neighbour on the node. A bigger dataset. One more step at boot."
-  madina "None of those touch the manifest, and every one of them moves the start."
-  madina "Every other number in a probe reacts to something the process did. This one only counts."
-  madina "It cannot tell a slow start from a dead process, because it is not looking."
+  ruslan "It holds because the number is right."
   settle 'kubectl -n demo rollout status deploy/svc --timeout=5s' 200 "pod up"
 
   run "kubectl -n demo get pods -l app=svc"
   ruslan "Green. Told you."
 
-  pause "A week passes. The cache is cold, Karpenter has packed two more containers onto the node, and CPU is now shared. The service starts in 20 seconds, not 10." \
+  pause "A week passes. Nothing is deployed and nothing is edited." \
     "click to move a week forward"
+
+  # The week used to pass in narration, which explained the cold cache and the
+  # crowded node to a room that had already been introduced to the character who
+  # does the crowding. He says it himself now: the world moves because someone in
+  # it moved, not because the script needs it to.
+  karpenter "I consolidated last night. Two more containers onto that node, same CPU."
 
   # Not a step improving the application: the same application, somewhere
   # slower. It is still a change to WARMUP_SECONDS, so it is still announced --
@@ -129,6 +139,16 @@ b_1_2() {
   watch_pods 25 "same manifest, slower environment" "app=svc"
 
   badsay "initialDelaySeconds is a bet that tomorrow looks like today."
+
+  # He asked "why would it?" four minutes ago and the cluster has just answered.
+  # Without this line his method never loses in front of the room -- it only
+  # stops being mentioned, which is not the same thing.
+  ruslan "...You did ask what happens if the start gets slower."
+  madina "I did."
+  madina "A cold cache. A noisier neighbour. A bigger dataset. One more step at boot."
+  madina "None of those touch the manifest, and every one of them moves the start."
+  madina "Every other number in a probe reacts to something the process did. This one only counts."
+  madina "It cannot tell a slow start from a dead process, because it is not looking."
 
   madina "May I? The documentation has a startupProbe."
   ruslan "You read the documentation?"
@@ -273,8 +293,6 @@ b_1_4() {
   compare "incident1-before" "incident1-after" "INCIDENT 1 . same load, before and after the probe fix"
   ruslan "p95 is the same as it was."
   madina "The service did not get faster. It stopped shooting at itself."
-
-  reveal "option four -- the question the probe was asking."
   say "It asked \"are you answering quickly\" and punished the answer as if it meant \"are you dead\"."
   bigsay "The load never changed. What took the service down was the health check."
 }
