@@ -36,7 +36,7 @@ b_1_1() {
   run "envsubst < $M/10-liveness-naive.yaml | kubectl apply -f -"
 
   say ""
-  say "The pod is Pending. There is nowhere to put it -- so Karpenter goes shopping."
+  say "The pod is Pending. There is nowhere to put it, so Karpenter goes shopping."
   karpenter "One pod with nowhere to go. Buying a machine."
 
   # Karpenter takes 20 to 60 seconds and the room has nothing to look at, so
@@ -51,7 +51,7 @@ b_1_1() {
   # Signed, and ignored: the titles promise that nobody asks her opinion for a
   # while, and the card being right while the room talks over it is the arc of
   # incident 1 in miniature.
-  madina "While we wait. Those four numbers Timur read out -- this is what they do."
+  madina "While we wait. This is what those four numbers Timur read out actually do."
   ruslan "Nobody asked."
   notes_madina 'A LIVENESS PROBE, IN FOUR NUMBERS' \
     "$(_col 22 'initialDelaySeconds')2   wait this long before the first question" \
@@ -254,7 +254,7 @@ b_1_4() {
   madina "None of the three. It was the wrong question."
   ruslan "Meaning?"
   madina "Liveness answers one thing: is the process alive. You do not visit a database for that."
-  madina "And do not rush it -- generous timeout, more misses allowed."
+  madina "And do not rush it: generous timeout, more misses allowed."
   timur "Then what takes a busy pod out of rotation?"
   madina "Readiness. That one is allowed to be twitchy."
   ruslan "One probe softer, the other sharper. Fine."

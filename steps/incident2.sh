@@ -65,7 +65,7 @@ b_2_1() {
 
 # ── 2.2 ──────────────────────────────────────────────────────────────────────
 b_2_2() {
-  say "Black Friday. The work arrives -- as a queue, which is what the whole system was built for."
+  say "Black Friday. The work arrives as a queue, which is what the whole system was built for."
   run "kubectl -n demo get scaledobject worker"
   say ""
   say "KEDA watches the queue. Zero workers right now, because there is nothing to do."
@@ -153,7 +153,7 @@ b_2_3() {
   mark_workers "incident2-before"
   load_stop
 
-  badsay "Scaling did not save the service. Scaling is what took it down -- and it bought hardware to do it."
+  badsay "Scaling did not save the service. Scaling is what took it down, and it bought hardware to do it."
   vote "what do you do first?" \
     "raise maxReplicaCount -- there are clearly not enough workers" \
     "restart the database -- it is slow" \
@@ -217,7 +217,7 @@ b_2_4() {
   # bit of credit the previous fifteen minutes earned -- so say it first.
   madina "Two things, while this runs. The workers column, and the node count."
   madina "Every worker that comes up should go Ready and stay Ready. And the node count should not move."
-  say "The queue will not go down -- two thousand a second go in, and twelve workers cannot outrun that. Watch the other two numbers."
+  say "The queue will not go down: two thousand a second go in, and twelve workers cannot outrun that. Watch the other two numbers."
   watch_scale 90 "every worker Ready, node count flat"
 
   run "kubectl exec -n demo deploy/dbshell -- sh -c \"psql \\\"\\\$DSN\\\" -c \\\"SELECT count(*) AS conns, count(*) FILTER (WHERE state='active') AS active, current_setting('max_connections') AS max FROM pg_stat_activity WHERE datname=current_database()\\\"\""
@@ -239,7 +239,7 @@ b_2_4() {
   madina "These twelve finish what they take. One probe changed. Nothing else did."
 
   karpenter "Nothing is Pending. I have stopped buying."
-  say "And nothing new was bought. Karpenter gives the idle machines back a couple of minutes later. It was never the problem -- it did what it was asked."
+  say "And nothing new was bought. Karpenter gives the idle machines back a couple of minutes later. It was never the problem. It did what it was asked."
 
   bigsay "readiness = can THIS pod serve, not is the shared database alive."
 }

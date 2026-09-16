@@ -40,14 +40,14 @@ Alexander Dovnar · Naviteq · AWS Community Day Central Asia 2026
 
 <!--
 "Good morning. This talk is about the six lines in your manifest that almost
-everyone copies from the service next door — and about the two of those lines
+everyone copies from the service next door, and about the two of those lines
 that can take a healthy service down and put the outage on your AWS bill.
 
 Two incidents, both reproduced live on a real EKS cluster. Nothing here is
 staged: the pods die because the numbers say they should."
 
 Operational note: this deck is not the talk. The talk is the terminal. Use the
-deck when the cluster cannot be used — the recordings on the incident slides
+deck when the cluster cannot be used. The recordings on the incident slides
 are full runs of the same show, cut per segment, so a failure at step 2.2 costs
 you 2.2 and nothing else.
 -->
@@ -74,7 +74,7 @@ this is the once.
 
 Played rather than read out, so the deck and the terminal introduce the same
 people the same way. Under a minute. If the clock is already tight, talk over it
-rather than skipping it — a later step that says "Madina unhooks the probe" does
+rather than skipping it. A later step that says "Madina unhooks the probe" does
 not land on a room that has never met her.
 -->
 
@@ -90,7 +90,7 @@ layout: default
   <img src="/diagrams/probes.svg" alt="kubelet asks three questions; each kind of wrong answer costs something different" />
 </div>
 
-<p class="nq-statement">Of everything that can take a container down — a crash, an OOM, an eviction, a rollout — a probe is the only one that does it <strong>while the process is working perfectly well</strong>.</p>
+<p class="nq-statement">Of everything that can take a container down (a crash, an OOM, an eviction, a rollout), a probe is the only one that does it <strong>while the process is working perfectly well</strong>.</p>
 
 <!--
 "Before anything fails, one picture. Something is asking your container
@@ -101,7 +101,7 @@ out of your manifest.
 Three questions, and they are not interchangeable. Startup asks whether the
 thing has finished booting, and while it runs the other two are not consulted
 at all. Liveness asks whether the process is alive, and a wrong answer restarts
-the container — work in flight dies with it. Readiness asks whether it can
+the container: work in flight dies with it. Readiness asks whether it can
 serve right now, and a wrong answer only takes the pod out of the Service; it
 keeps running and comes back by itself.
 
@@ -129,7 +129,7 @@ layout: default
 later.
 
 The api takes requests and puts jobs on an SQS queue. Workers consume the
-queue. KEDA — the autoscaler that scales on external metrics — watches the
+queue. KEDA, the autoscaler that scales on external metrics, watches the
 queue depth and adds workers. Karpenter watches for pods that cannot be
 scheduled and buys EC2 nodes to put them on. Two autoscalers, two different
 signals, neither aware of the other.
@@ -198,7 +198,7 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 
 <div v-click="6" class="mt-5">
 
-<p class="nq-body"><code>timeoutSeconds: 1</code> is the other half. An answer at 1.1 seconds counts exactly the same as no answer at all — and a service answers slowly precisely when it is busy.</p>
+<p class="nq-body"><code>timeoutSeconds: 1</code> is the other half. An answer at 1.1 seconds counts exactly the same as no answer at all, and a service answers slowly precisely when it is busy.</p>
 
 </div>
 
@@ -219,7 +219,7 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 
 [click] So add them up. Two, plus three misses a second apart, is five seconds
 of patience. The service needs ten to warm up. The pod is killed on the fifth
-second, every single time, and there is no bug anywhere — not in the code, not
+second, every single time, and there is no bug anywhere: not in the code, not
 in the manifest. It is arithmetic.
 
 [click] And timeoutSeconds is the half that bites later. An answer at one point
@@ -227,7 +227,7 @@ one seconds is scored the same as no answer at all, and a service gets slow
 exactly when it is busy.
 
 [click] The fix everyone reaches for is a bigger initialDelaySeconds, and it
-holds right up until the day boot gets slower — a cold cache, a noisier
+holds right up until the day boot gets slower: a cold cache, a noisier
 neighbour, one more step at startup. A startupProbe gives boot its own budget
 instead, and silences the other two while it runs."
 -->
@@ -317,7 +317,7 @@ layout: default
   <img src="/diagrams/verdicts.svg" alt="liveness kills the container; readiness only removes the pod from the Service" />
 </div>
 
-<p class="nq-statement">Which makes <code>timeoutSeconds: 1</code> on a liveness probe <strong>a latency alarm wired to a kill switch</strong>. The load never changed — what took the service down was the health check.</p>
+<p class="nq-statement">Which makes <code>timeoutSeconds: 1</code> on a liveness probe <strong>a latency alarm wired to a kill switch</strong>. The load never changed. What took the service down was the health check.</p>
 
 <!--
 "So why did a slow answer cost us the container?
@@ -326,7 +326,7 @@ Because of which probe was asking. Same pod, working fine, same failed check.
 
 On the left, liveness says no: kubelet kills the container. Everything in
 flight dies with it, the connection pool is rebuilt, the cache is cold again.
-That action is irreversible, and liveness has exactly one job — notice a
+That action is irreversible, and liveness has exactly one job: notice a
 process that will never recover on its own.
 
 On the right, readiness says no: the pod leaves the EndpointSlice and stops
@@ -405,7 +405,7 @@ rows, err := db.Query(ctx, aggregate)
 
 [click] periodSeconds: two. Every replica asks every two seconds.
 
-[click] And the check itself goes to the database — a real query, because
+[click] And the check itself goes to the database: a real query, because
 readiness should verify we can actually read our data. That sentence is why
 this ships.
 
@@ -414,7 +414,7 @@ fifty-seven, one and a half scans a second. It passes review, it passes
 staging, and it passes the first week in production.
 
 [click] But the cost of that check is not a constant. It is replicas divided
-by the period — it scales with the fleet, and the fleet is exactly what an
+by the period. It scales with the fleet, and the fleet is exactly what an
 autoscaler moves.
 
 [click] Three replicas, twelve connections. Twelve replicas, forty-eight.
@@ -444,12 +444,12 @@ The probe asks the database. The database is at its connection limit, so the
 probe fails, and replicas go NotReady. A NotReady worker stops consuming SQS.
 The queue depth grows. KEDA reads queue depth and adds workers. The new workers
 have nowhere to run, so Karpenter buys nodes for them. Every new worker opens
-connections to the same database — and asks it the same question every two
+connections to the same database, and asks it the same question every two
 seconds.
 
 Every turn of that circle makes the next turn worse. And the thing to say out
 loud: nothing in this loop is broken. Every component is doing exactly what it
-was asked to do. The only part of it with a price tag is the bottom — where a
+was asked to do. The only part of it with a price tag is the bottom, where a
 misconfigured health check turns into EC2 instances."
 
 Give this slide its thirty seconds even when running late.
@@ -470,7 +470,7 @@ class: nq-cast-slide nq-cast-full
 2.1 · The review that let it through
 
 "Queue fills. KEDA scales workers from zero. Karpenter buys machines. Then the
-wall at fifty-seven connections — and throughput at zero while the node counter
+wall at fifty-seven connections, and throughput at zero while the node counter
 keeps climbing."
 
 This segment is the review itself: the probe that everyone signed off on.
@@ -541,7 +541,7 @@ layout: default
 
 A goroutine refreshes a flag on its own schedule. The probe reads the flag.
 
-**O(1) in replicas**, not O(n) — and a stale flag still takes the pod out, one at a time as each expires.
+**O(1) in replicas**, not O(n), and a stale flag still takes the pod out, one at a time as each expires.
 
 </NqCard>
 
@@ -582,13 +582,13 @@ An autoscaler without a ceiling is a way to turn an incident into an invoice.
 
 [click] One: unhook the probe from the dependency. A goroutine refreshes a flag
 on its own schedule, and the probe reads the flag. That is order one in
-replicas instead of order n — and it still works as a health check, because a
+replicas instead of order n, and it still works as a health check, because a
 flag that goes stale still takes the pod out, one pod at a time as each one
 expires.
 
 [click] Two: budget the pool. Replicas times the per-pod pool maximum has to
 stay under max_connections, with room left for everything else that connects to
-that database — migrations, the shell you opened, your monitoring.
+that database: migrations, the shell you opened, your monitoring.
 
 [click] Three: cap the autoscaler. Twelve, not twenty-four. An autoscaler with
 no ceiling is a mechanism for converting an incident into an invoice.
@@ -639,7 +639,7 @@ layout: default
 repository as docs/CHECKLIST.md so nobody has to.
 
 Liveness first. It does not touch the database, a cache, a queue or any other
-process — because it is the one probe whose answer is a kill. It does not share
+process, because it is the one probe whose answer is a kill. It does not share
 a connection pool or a worker slot with real traffic, or it will fail exactly
 when traffic is heaviest. Its timeout is measured in seconds, not one. And the
 arithmetic is written down somewhere, checked against the slowest start you
@@ -680,7 +680,7 @@ layout: default
 <ul class="nq-body mt-3">
 <li><code>replicas × POOL_MAX</code> under <code>max_connections</code></li>
 <li>Every autoscaler has a ceiling</li>
-<li>A worker that cannot reach its dependency does not ack its message — check that your retry path cannot feed your scaler</li>
+<li>A worker that cannot reach its dependency does not ack its message; check that your retry path cannot feed your scaler</li>
 <li>Node autoscaling turns all of it into money</li>
 </ul>
 
@@ -688,7 +688,7 @@ layout: default
 
 </div>
 
-<p class="nq-statement mt-6">Probes are the only code that can kill a healthy service — and with an autoscaler underneath, bill you for it.</p>
+<p class="nq-statement mt-6">Probes are the only code that can kill a healthy service, and with an autoscaler underneath, bill you for it.</p>
 
 <!--
 "Readiness. It answers one question: can this pod serve right now. Never 'is
@@ -696,16 +696,16 @@ the shared thing healthy', because every replica asking that turns one sick
 dependency into a fleet-wide outage. If it genuinely has to know about a
 dependency, it reads a flag that something else refreshes. And whatever it
 costs, multiply that by your maximum replica count and then by the autoscaler's
-ceiling — that is the real number.
+ceiling. That is what the probe actually costs.
 
 Around the probe: replicas times pool maximum stays under max_connections.
-Every autoscaler has a ceiling. Watch the retry path — a worker that cannot
+Every autoscaler has a ceiling. Watch the retry path: a worker that cannot
 reach its dependency does not acknowledge its message, the message goes back on
 the queue, and the queue is what your scaler is reading. And node autoscaling
 turns all of it into money.
 
 Which is where we started. Probes are the only code you write that can kill a
-healthy service — and with an autoscaler underneath, bill you for it."
+healthy service, and with an autoscaler underneath, bill you for it."
 -->
 
 ---
@@ -734,7 +734,7 @@ variant: 2
 </div>
 
 <!--
-"Everything is in the repository — the checklist, the manifests with these
+"Everything is in the repository: the checklist, the manifests with these
 numbers in them, and the demo itself. Point a camera at the code and you can
 reproduce both incidents on your own cluster in about twenty minutes.
 

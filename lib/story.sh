@@ -313,7 +313,7 @@ finale() {
   madina "It was never the number."
   madina "I wrote all of this down, by the way."
 
-  bigsay "Probes are the only code that can kill a healthy service -- and now bill you for it."
+  bigsay "Probes are the only code that can kill a healthy service, and now bill you for it."
 
   # The last reason to leave the terminal was the closing checklist, and the
   # room does not read a checklist -- it photographs one. So the ending is the
