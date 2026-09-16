@@ -34,12 +34,20 @@ import sys
 
 # The header line, once the colour codes are out of the way. Two leading spaces
 # and " . " between number and title are the driver's format, not a guess.
-HEADER = re.compile(r"\n {2}(\d+\.\d+) \. ([^\r\n]{1,70})")
+#
+# "0" is spelled out rather than allowed as a general bare number, because the
+# driver prints the vote options in the same shape -- `  1 . Timur -- copied a
+# probe out of an article` -- and a rule loose enough to catch step 0 catches
+# those three as steps too. Zero is the only step without a minor number: it is
+# the title card and the introductions, who is on call. It used to be excluded
+# here and cut from 0.0 instead, which opened its slide on tmux building the
+# stage rather than on the cast being introduced.
+HEADER = re.compile(r"\n {2}(\d+\.\d+|0) \. ([^\r\n]{1,70})")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]|\x1b[=>]")
 
-# Step 0's header, printed before anything is clicked. Same shape as the others
-# but numbered "0" rather than "N.N", which is why HEADER does not match it and
-# why it is the thing to look for when nothing else is there.
+# Step 0's header, printed before anything is clicked. HEADER matches it too;
+# this exists to tell "the show was never started" from "this is not a recording
+# of the stage at all", which are the same empty result and different problems.
 INTRO = re.compile(r"\n {2}0 \. ")
 
 # The dead-air cap the deck plays with. Both the cut times and the player have
@@ -160,7 +168,10 @@ def main():
 
     header, events, _ = read_cast(src)
     steps = find_steps(events)
-    if not steps:
+    # Step 0 on its own is the title card and nothing after it: the stage opened,
+    # the cast was introduced, and whoever was recording stopped before clicking
+    # into 1.1. That is a recording of ./stage, just not of the show.
+    if not [st for st in steps if st[1] != "0"]:
         # Two very different failures produce no cuts, and "is this a recording
         # of ./stage?" is the wrong question for the common one: a recording
         # that stops on the title card is a recording of the stage, it just
@@ -178,8 +189,11 @@ def main():
                   file=sys.stderr)
         return 1
 
-    # Everything before the first header is the titles: who is on call.
-    marks = [(0.0, "0", "Who is on call")] + steps
+    # The driver prints step 0's header a few seconds in, once the stage has
+    # been built, so the cut lands on the introductions rather than on tmux
+    # drawing panes. Only a recording that somehow has no header for it falls
+    # back to cutting from zero.
+    marks = steps if steps[0][1] == "0" else [(0.0, "0", "Who is on call")] + steps
     total = events[-1][0] if events else 0.0
     cuts = []
     for i, (start, step, title) in enumerate(marks):
@@ -234,8 +248,6 @@ def main():
     print("\n  --- slides, ready to paste ---\n")
     for c in cuts:
         step, title = c["step"], c["title"]
-        if step == "0":
-            continue
         if full_bleed:
             print(f"""---
 layout: default

@@ -353,7 +353,11 @@ turns margins off so this does not happen; the probe is how you find out it work
 terminal, and `task deck:record` refuses to finish quietly if it did not.
 
 What `deck:split` writes is `full.cuts.json` — a boundary per step — and the slides ask for
-a step by name: `<Cast src="/casts/full.cast" step="1.4" />`. One recording ships, and each
+a step by name: `<Cast src="/casts/full.cast" step="1.4" />`. Every step gets a slide,
+step 0 included: the introductions are part of the show, and a deck that opens straight on
+incident 1 introduces Madina for the first time in the step where she unhooks the probe. Its
+cut is the driver's own `0 . Who is on call` header a few seconds in, so the slide opens on
+the cast rather than on tmux building the stage. One recording ships, and each
 slide plays its range out of it. Cutting each step into a cast of its own is the obvious
 thing and it is wrong: an asciicast is a stream of terminal writes, so a file that starts
 mid-stream starts on a blank screen, and everything tmux had drawn before the cut — the pane

@@ -54,6 +54,32 @@ you 2.2 and nothing else.
 
 ---
 layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="0" fit="both" />
+  </div>
+</div>
+
+<!--
+0 · Who is on call
+
+The cast, introduced by the stage itself: Timur, who ships the service; Ruslan,
+who tunes the numbers; Madina, who asks what the probe is actually for; and
+Karpenter, which answers Pending pods by buying machines and has a credit card.
+Every step from 1.1 onwards uses these names, so the room needs them once, and
+this is the once.
+
+Played rather than read out, so the deck and the terminal introduce the same
+people the same way. Under a minute. If the clock is already tight, talk over it
+rather than skipping it — a later step that says "Madina unhooks the probe" does
+not land on a room that has never met her.
+-->
+
+---
+layout: default
 ---
 
 # Something is asking your container questions
