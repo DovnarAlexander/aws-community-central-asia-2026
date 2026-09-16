@@ -233,7 +233,7 @@ thing worth photographing: a card with a link, and a QR beside it (`task qr`). T
 carries `docs/CHECKLIST.md` and the manifests that produced every failure they just watched,
 which is a better takeaway than a slide of bullets and costs no switch. One card stays at
 the front, in the titles: who is asking the questions, and what the three answers do.
-Without it Timur's "initialDelay 5, period 5, timeout 1, three misses" is noise to anyone
+Without it Timur's "initialDelay 2, period 1, timeout 1, three misses" is noise to anyone
 who has not wired a probe before.
 
 The teaching cards are **signed**. Nearly all of them are Madina's, printed under her name

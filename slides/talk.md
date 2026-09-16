@@ -163,7 +163,7 @@ layout: default
 
 # It is arithmetic, not a bug
 
-<p class="nq-lede">The service warms up for <strong>30 seconds</strong>. Every number in this probe is defensible on its own.</p>
+<p class="nq-lede">The service warms up for <strong>10 seconds</strong>. Every number in this probe is defensible on its own.</p>
 
 <div class="grid grid-cols-[1.08fr_1fr] gap-7 mt-2">
 
@@ -172,8 +172,8 @@ layout: default
 ```yaml {all|3|4|6|5}
 livenessProbe:
   httpGet: { path: /healthz, port: 8080 }
-  initialDelaySeconds: 5   # pause before the first question
-  periodSeconds: 5         # then ask again this often
+  initialDelaySeconds: 2   # pause before the first question
+  periodSeconds: 1         # then ask again this often
   timeoutSeconds: 1        # an answer slower than this is a miss
   failureThreshold: 3      # this many misses and the pod dies
 ```
@@ -190,9 +190,9 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 
 <div v-click="5">
 
-<p class="nq-figure-number">5 + 3 × 5 = 20 s</p>
+<p class="nq-figure-number">2 + 3 × 1 = 5 s</p>
 
-<p class="nq-body">Patience runs out at twenty. The service is ready at thirty. <strong>The pod dies every single time</strong>, and nothing in the manifest is wrong.</p>
+<p class="nq-body">Patience runs out at five. The service is ready at ten. <strong>The pod dies every single time</strong>, and nothing in the manifest is wrong.</p>
 
 </div>
 
@@ -209,18 +209,18 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 <!--
 "Here is the probe. Four numbers, all copied, none of them absurd.
 
-[click] initialDelaySeconds: five. Wait five seconds before asking anything.
+[click] initialDelaySeconds: two. Wait two seconds before asking anything.
 
-[click] periodSeconds: five. Then ask again every five seconds.
+[click] periodSeconds: one. Then ask again every second.
 
 [click] failureThreshold: three. Three misses in a row and the pod dies.
 
 [click] timeoutSeconds: one. An answer has one second to arrive.
 
-[click] So add them up. Five, plus three misses five seconds apart, is twenty
-seconds of patience. The service needs thirty to warm up. The pod is killed on
-the twentieth second, every single time, and there is no bug anywhere — not in
-the code, not in the manifest. It is arithmetic.
+[click] So add them up. Two, plus three misses a second apart, is five seconds
+of patience. The service needs ten to warm up. The pod is killed on the fifth
+second, every single time, and there is no bug anywhere — not in the code, not
+in the manifest. It is arithmetic.
 
 [click] And timeoutSeconds is the half that bites later. An answer at one point
 one seconds is scored the same as no answer at all, and a service gets slow

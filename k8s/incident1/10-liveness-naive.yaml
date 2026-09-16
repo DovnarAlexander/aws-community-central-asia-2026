@@ -1,9 +1,17 @@
 # Incident 1, step 1.1 -- the probe Timur copied out of a blog post.
 #
-# The service takes 30 seconds to warm up. The probe starts asking after 5, and
-# gives up after three misses at 5-second intervals. 5 + 3x5 = 20 seconds of
-# patience against 30 seconds of startup. Nothing here is a bug, and the pod
-# dies every single time.
+# The service takes 10 seconds to warm up. The probe starts asking after 2, and
+# gives up after three misses a second apart. 2 + 3x1 = 5 seconds of patience
+# against 10 seconds of startup. Nothing here is a bug, and the pod dies every
+# single time.
+#
+# These were 5 and 5 against a 30-second warmup, and the arithmetic was the same
+# shape. What the smaller numbers buy is the kill landing on the fifth second
+# instead of the twentieth, and the second restart inside half a minute: the
+# room watches the RESTARTS column move while the speaker is still explaining
+# why it will. Patience has to stay under the warmup and comfortably so -- five
+# against ten is the same 1:2 the old numbers had, so a slow node cannot turn
+# the demonstration green by accident.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,7 +39,7 @@ spec:
             - containerPort: 8080
           env:
             - name: WARMUP_SECONDS
-              value: "30"
+              value: "10"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE
@@ -43,7 +51,7 @@ spec:
             requests: { cpu: "250m", memory: "64Mi" }
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
-            initialDelaySeconds: 5
-            periodSeconds: 5
+            initialDelaySeconds: 2
+            periodSeconds: 1
             timeoutSeconds: 1
             failureThreshold: 3

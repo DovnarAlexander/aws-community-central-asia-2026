@@ -15,7 +15,7 @@ everyone, so there is no cast slide and no reason to leave the window.
 
 | Who | Role | What they do |
 | --- | --- | --- |
-| `(o_o)` Timur | backend | Wrote a service that takes 30 seconds to start; copied the probe from an article |
+| `(o_o)` Timur | backend | Wrote a service that takes 10 seconds to start; copied the probe from an article |
 | `(-_-)` Ruslan | DevOps | Fixes production by raising numbers in YAML. Approved the review |
 | `(^_^)` Madina | intern | Read the documentation. Brings the startup probe and the incident 2 fix |
 | `[o_o]` kubelet | executioner | Does exactly what the manifest says. Blameless |
@@ -164,7 +164,7 @@ The pod is `Pending` first, because there is nowhere to put it. Karpenter buys a
 measured at about 20 seconds. The **four numbers** card goes up in that wait — the probe
 vocabulary explained immediately before the probe uses it to kill something.
 
-Then: warmup 30 seconds, `initialDelaySeconds: 5`, three misses at 5-second intervals. Five
+Then: warmup 10 seconds, `initialDelaySeconds: 2`, three misses a second apart. Two
 plus fifteen is twenty seconds of patience against thirty seconds of startup. The first
 restart lands at about t+20s from the container starting, the second at about t+50s once
 the restart backoff is added.
@@ -176,19 +176,28 @@ the restart backoff is added.
 Two steps in one: Ruslan's number and Madina's answer to it are a question and its answer,
 and telling them separately cost an extra rollout and an extra step header for one lesson.
 
-`initialDelaySeconds: 25` against a 15-second start fixes it, and holds until the day the
-start gets slower. `kubectl set env WARMUP_SECONDS=50` is that day: patience is 25 + 3×5 =
-40 seconds, so the kill lands at 40, ten seconds before the service would have been ready.
+`initialDelaySeconds: 12` against a 10-second start fixes it, and holds until the day the
+start gets slower. `kubectl set env WARMUP_SECONDS=20` is that day: patience is 12 + 3×1 =
+15 seconds, so the kill lands at 15, five seconds before the service would have been ready.
 The manifest is untouched; everything around it changed.
 
-These numbers used to be 40 against 30 and 60 for the slow day. They are smaller because
-the failure is pure arithmetic and arithmetic is as true at 25 seconds as at 40 — what the
-halving bought is the stage time the cards now spend.
+The numbers are small on purpose. The failure is pure arithmetic and arithmetic is as true
+at five seconds as at forty, and with patience under ten the RESTARTS column moves while
+you are still explaining why it will — at the old 5 + 3×5 the first kill landed on the
+twentieth second no matter what the warmup said, which is what made the opening drag.
+
+**`WARMUP_SECONDS` never moves inside a probe diff.** It used to drop from 30 to 15 in the
+same diff as Ruslan's `initialDelaySeconds`, unannounced, so his fix looked like it worked
+partly because the application had quietly been made faster. Every change to the service
+itself — warmup, `HEALTHZ_MODE`, `READY_MODE`, `POOL_MAX` — is announced by whoever owns it
+with an `app change` line and a reason, and a step about a probe changes only the probe.
+The manifests' header comments are stripped before anything is shown, so the diff on screen
+is the change and nothing else: Ruslan's is one line.
 
 Then `startupProbe`: its own budget, 60 checks at 2 seconds, and while it runs liveness is
-not consulted at all. Same 50-second start as the breakage a minute earlier — the manifest
-carries `WARMUP_SECONDS=50` for exactly that reason, so do not "fix" it back to 15. The
-**three probes** card fills the 50 seconds; the pods pane shows 0/1 and `RESTARTS 0`
+not consulted at all. Same 20-second start as the breakage a minute earlier — the manifest
+carries `WARMUP_SECONDS=20` for exactly that reason, so do not "fix" it back to 10. The
+**three probes** card fills the 20 seconds; the pods pane shows 0/1 and `RESTARTS 0`
 throughout, which is the step's whole argument.
 
 ### 1.3 — Production config, and real traffic

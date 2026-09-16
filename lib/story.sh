@@ -52,6 +52,32 @@ pg()        { _by "$C_PG"        '(~_~)' 'Postgres'  "$@"; }
 keda()      { _by "$C_KEDA"      '[>_<]' 'KEDA'      "$@"; }
 karpenter() { _by "$C_KARPENTER" '[$_$]' 'Karpenter' "$@"; }
 
+# ── changing the application, out loud ───────────────────────────────────────
+# The probes live in the manifest and the room watches them change in a diff.
+# The service's own settings live in the same file and change in the same diff:
+# how long it warms up, whether /healthz leaves the process, how big the pool
+# is. Nothing on screen tells those two apart, so a step that raises
+# initialDelaySeconds and quietly halves WARMUP_SECONDS in the same breath reads
+# as a probe being fixed by editing the application -- which is not the argument
+# this talk is making, and is exactly the kind of sleight of hand a room notices
+# without being able to name.
+#
+# So every application-level change is announced by whoever owns the
+# application, by name, with the reason. A probe change needs no such line: the
+# whole talk is about probes, and the diff is the point.
+#
+#   appchange timur 'WARMUP_SECONDS  30 -> 10' "I trimmed the cache warm-up ..."
+#
+# The marker is deliberately not a speech bubble. It is a label on the change
+# itself, and the reason follows in the owner's voice underneath it.
+appchange() { # appchange SPEAKER 'VAR from -> to' WHY...
+  [ "$FAST" = 1 ] && return 0
+  local who="$1" what="$2"; shift 2
+  printf '\n  %bapp change%b  %b%s%b\n' "$C_WARN" "$C_OFF" "$C_B" "$what" "$C_OFF"
+  "$who" "$@"
+  return 0
+}
+
 # ── animation ────────────────────────────────────────────────────────────────
 # ANIM=1 types slowly. Any key stops the animation for the rest of the titles:
 # if the schedule is tight, the speaker presses next and the text lands at once.
@@ -185,7 +211,7 @@ b_0() {
   printf '\n  %bON CALL%b\n' "$C_B" "$C_OFF"
 
   _hero "$C_TIMUR" '(o_o)' 'Timur' 'backend'
-  _type "$C_SAY" 8 '"I wrote the service. It takes 30 seconds to start:'
+  _type "$C_SAY" 8 '"I wrote the service. It takes 10 seconds to start:'
   _type "$C_SAY" 8 'warms a cache, opens a pool. The probe I copied from a blog post.'
   _type "$C_SAY" 8 'It is green, so it is correct."'
   _beat_pause

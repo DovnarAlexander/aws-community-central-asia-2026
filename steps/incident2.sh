@@ -18,6 +18,11 @@ b_2_1() {
   say ""
   timur "Rewrote readiness. It is honest now."
   timur "Every call goes to the database and checks the data is actually readable."
+  # The probe numbers do not move in this step at all -- the readiness probe is
+  # the same 5/1/3 it was at the end of incident 1. What changed is inside the
+  # service, and that is the whole reason this incident happens.
+  appchange timur 'READY_MODE  cached -> db_each_call' \
+    "The probe used to read a cached flag. Now every /ready call does a real query, so a green pod means the database answered."
   ruslan "LGTM. It checks a real dependency. That is the right thing to do."
   madina "..."
   ruslan "Madina?"
@@ -160,6 +165,13 @@ b_2_4() {
   say "The probe now costs O(1). Sixteen replicas or a hundred and sixty, it is the same."
   madina "Two more things. The pool is budgeted against the wall: three connections, not four."
   madina "And KEDA gets a ceiling. An autoscaler without one is a way to turn an incident into an invoice."
+  # Two of the three parts of the fix are changes to the service, not to a
+  # probe. Named here so the card below lands as a summary rather than as the
+  # first the room hears of them.
+  appchange madina 'READY_MODE  db_each_call -> cached' \
+    "A goroutine does SELECT 1 on its own schedule and stores the answer. The probe reads the flag, so the cost stops multiplying by replicas."
+  appchange madina 'POOL_MAX  4 -> 3' \
+    "And the pool is budgeted against max_connections rather than against nothing."
   showdiff "$M2/20-ready-db-each-call.yaml" "$M2/21-ready-cached.yaml"
 
   run "envsubst < $M2/21-ready-cached.yaml | kubectl apply -f -"

@@ -1,60 +1,60 @@
 {
   "source": "full.cast",
   "idle_time_limit": 2.0,
-  "duration": 864.781,
+  "duration": 546.242,
   "cuts": [
     {
       "step": "0",
       "title": "Who is on call",
-      "from": 4.869,
-      "to": 59.118
+      "from": 3.918,
+      "to": 102.055
     },
     {
       "step": "1.1",
       "title": "Timur ships a service",
-      "from": 59.118,
-      "to": 151.42
+      "from": 102.055,
+      "to": 187.01
     },
     {
       "step": "1.2",
       "title": "The number, and the documentation",
-      "from": 151.42,
-      "to": 271.036
+      "from": 187.01,
+      "to": 337.141
     },
     {
       "step": "1.3",
       "title": "Production config, and real traffic",
-      "from": 271.036,
-      "to": 357.693
+      "from": 337.141,
+      "to": 426.358
     },
     {
       "step": "1.4",
       "title": "End of incident 1 -- before and after",
-      "from": 357.693,
-      "to": 432.327
+      "from": 426.358,
+      "to": 463.533
     },
     {
       "step": "2.1",
       "title": "The review that let it through",
-      "from": 432.327,
-      "to": 476.117
+      "from": 463.533,
+      "to": 478.114
     },
     {
       "step": "2.2",
       "title": "Black Friday: the queue fills",
-      "from": 476.117,
-      "to": 586.986
+      "from": 478.114,
+      "to": 489.706
     },
     {
       "step": "2.3",
       "title": "The cascade, and the autoscalers help",
-      "from": 586.986,
-      "to": 695.955
+      "from": 489.706,
+      "to": 512.404
     },
     {
       "step": "2.4",
       "title": "Madina unhooks the probe",
-      "from": 695.955,
+      "from": 512.404,
       "to": null
     }
   ]

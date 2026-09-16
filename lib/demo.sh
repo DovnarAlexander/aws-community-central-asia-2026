@@ -241,14 +241,25 @@ run() {
 runq() { eval "$*" >/dev/null 2>&1; return 0; }
 
 # show: put a file on the screen.
+# Every manifest opens with a block of comment explaining what it is for and
+# what it is about to break. That block is for whoever opens the repository six
+# months from now; on stage it is a wall of prose in front of the four lines the
+# room came to see, and in a diff between two steps it is the largest hunk on
+# screen while the actual change is one line at the bottom. So the header comes
+# off before anything is shown. Comments inside the manifest stay: those label
+# the thing being pointed at.
+_body() { # _body FILE -- the manifest without its header comment
+  awk 'started || ($0 !~ /^#/ && $0 !~ /^[[:space:]]*$/) { started = 1; print }' "$1"
+}
+
 show() {
   local f="$1"
   printf '\n  %b%s%b\n' "$C_B" "$f" "$C_OFF"
   ask 'click to open it' || return 0
   if command -v bat >/dev/null 2>&1; then
-    bat --style=plain --color=always --language=yaml "$DEMO_ROOT/$f"
+    _body "$DEMO_ROOT/$f" | bat --style=plain --color=always --language=yaml
   else
-    sed 's/^/  /' "$DEMO_ROOT/$f"
+    _body "$DEMO_ROOT/$f" | sed 's/^/  /'
   fi
 }
 
@@ -256,8 +267,13 @@ show() {
 showdiff() {
   printf '\n  %bwhat changes: %s -> %s%b\n' "$C_B" "$(basename "$1")" "$(basename "$2")" "$C_OFF"
   ask 'click to see the diff' || return 0
+  local a b
+  a=$(mktemp) && b=$(mktemp) || return 0
+  _body "$DEMO_ROOT/$1" > "$a"
+  _body "$DEMO_ROOT/$2" > "$b"
   git --no-pager diff --no-index --color=always --unified=2 \
-    "$DEMO_ROOT/$1" "$DEMO_ROOT/$2" 2>/dev/null | tail -n +5 | sed 's/^/  /'
+    "$a" "$b" 2>/dev/null | tail -n +5 | sed 's/^/  /'
+  rm -f "$a" "$b"
   return 0
 }
 

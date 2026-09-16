@@ -1,17 +1,18 @@
 # Incident 1, step 1.2 -- Ruslan fixes production the way Ruslan fixes production.
 #
-# 25 is bigger than 15, the CrashLoop stops, and the fix holds until the day the
+# 12 is bigger than 10, the CrashLoop stops, and the fix holds until the day the
 # service starts taking longer. It is a bet that tomorrow looks like today.
 #
-# These numbers used to be 40 against 30. They are half that now because the
-# failure is pure arithmetic -- initialDelay + failureThreshold x period against
-# the warmup -- and arithmetic is as true at 25 seconds as at 40. What the
-# halving bought is most of a minute of stage time, which the theory cards now
-# spend explaining the probe while the rollout settles.
+# ONE LINE CHANGES FROM THE PREVIOUS MANIFEST, AND IT IS A PROBE LINE.
+# WARMUP_SECONDS stays at 10. It used to drop from 30 to 15 right here, in the
+# same diff as the probe, with nobody saying so -- which made Ruslan's fix look
+# like it worked partly because the application had been quietly made faster.
+# The application belongs to Timur, changes to it are announced by Timur, and a
+# step about a probe changes the probe.
 #
-# Green here:  warmup 15 < initialDelay 25, ten seconds of margin.
-# Broken next: the step sets WARMUP_SECONDS=50 against 25 + 3x5 = 40 seconds of
-# patience, so the kill lands at 40 and the pod would have been ready at 50.
+# Green here:  warmup 10 < patience 12 + 3x1 = 15, five seconds of margin.
+# Broken next: the step sets WARMUP_SECONDS=20 against those same 15 seconds of
+# patience, so the kill lands at 15 and the pod would have been ready at 20.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,7 +40,7 @@ spec:
             - containerPort: 8080
           env:
             - name: WARMUP_SECONDS
-              value: "15"
+              value: "10"
             - name: HEALTHZ_MODE
               value: "local"
             - name: READY_MODE
@@ -51,7 +52,7 @@ spec:
             requests: { cpu: "250m", memory: "64Mi" }
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
-            initialDelaySeconds: 25
-            periodSeconds: 5
+            initialDelaySeconds: 12
+            periodSeconds: 1
             timeoutSeconds: 1
             failureThreshold: 3

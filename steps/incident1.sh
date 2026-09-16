@@ -20,12 +20,12 @@ M=k8s/incident1
 
 # ── 1.1 ──────────────────────────────────────────────────────────────────────
 b_1_1() {
-  timur "Service is done. Takes 30 seconds to start: warms a cache, opens a pool, reads config."
+  timur "Service is done. Takes 10 seconds to start: warms a cache, opens a pool, reads config."
   timur "After that it flies."
   ruslan "Got a probe?"
   timur "Copied one out of an article. It was right there in the example."
   madina "What are the numbers?"
-  timur "initialDelay 5, period 5, timeout 1, three misses. Same as everyone."
+  timur "initialDelay 2, period 1, timeout 1, three misses. Straight out of the example."
   show "$M/10-liveness-naive.yaml"
 
   run "envsubst < $M/10-liveness-naive.yaml | kubectl apply -f -"
@@ -49,13 +49,13 @@ b_1_1() {
   madina "While we wait. Those four numbers Timur read out -- this is what they do."
   ruslan "Nobody asked."
   notes_madina 'A LIVENESS PROBE, IN FOUR NUMBERS' \
-    "$(_col 22 'initialDelaySeconds')5   wait this long before the first question" \
-    "$(_col 22 'periodSeconds')5   then ask again this often" \
+    "$(_col 22 'initialDelaySeconds')2   wait this long before the first question" \
+    "$(_col 22 'periodSeconds')1   then ask again this often" \
     "$(_col 22 'timeoutSeconds')1   an answer slower than this is a miss" \
     "$(_col 22 'failureThreshold')3   this many misses in a row and the pod dies" \
     '' \
-    'Patience = initialDelay + failureThreshold x period = 20 seconds.' \
-    'The service needs 30. Nothing else here is a bug.' \
+    'Patience = initialDelay + failureThreshold x period = 5 seconds.' \
+    'The service needs 10. Nothing else here is a bug.' \
     '' \
     'kubelet asks. Not a load balancer, not a human, not your code.'
 
@@ -63,14 +63,14 @@ b_1_1() {
   settle 'kubectl -n demo get pods -l app=svc --no-headers | grep -qv Pending' \
     180 "node arrived, pod scheduled"
 
-  kubelet "Five seconds gone. Asking: are you alive?"
+  kubelet "Two seconds gone. Asking: are you alive?"
   timur "It is warming up."
   kubelet "That answer is not in the manifest."
   say ""
-  say "The warmup runs 30 seconds. The first knock lands at five. Count along."
-  # First kill at ~20s, the second at ~50s once the restart backoff is added.
-  # Two restarts is the whole argument; a third costs another minute.
-  watch_pods 55 "watch the RESTARTS column" "app=svc"
+  say "The warmup runs ten seconds. The first knock lands at two. Count along."
+  # First kill at ~5s, the second at ~20s once CrashLoopBackOff adds its ten.
+  # Two restarts is the whole argument; a third costs another half minute.
+  watch_pods 25 "watch the RESTARTS column" "app=svc"
 
   kubelet "Three misses in a row. Killing it."
   timur "I did not write a single bug!"
@@ -89,7 +89,7 @@ b_1_2() {
   timur "Which one?"
   ruslan "The one with the number in it."
   showdiff "$M/10-liveness-naive.yaml" "$M/11-liveness-initialdelay.yaml"
-  ruslan "Twenty-five is bigger than fifteen. We are done here."
+  ruslan "Twelve is bigger than ten. We are done here."
   madina "What if the start gets slower?"
   ruslan "Why would it?"
 
@@ -108,20 +108,25 @@ b_1_2() {
   run "kubectl -n demo get pods -l app=svc"
   ruslan "Green. Told you."
 
-  pause "A week passes. The cache is cold, Karpenter has packed two more containers onto the node, and CPU is now shared. The service starts in 50 seconds, not 15." \
+  pause "A week passes. The cache is cold, Karpenter has packed two more containers onto the node, and CPU is now shared. The service starts in 20 seconds, not 10." \
     "click to move a week forward"
 
-  run "kubectl -n demo set env deploy/svc WARMUP_SECONDS=50"
+  # Not a step improving the application: the same application, somewhere
+  # slower. It is still a change to WARMUP_SECONDS, so it is still announced --
+  # the room has to see that the manifest is untouched and the world is not.
+  appchange timur 'WARMUP_SECONDS  10 -> 20' \
+    "Nothing shipped. The start just takes twenty seconds on this node now, so that is what I am setting it to."
+  run "kubectl -n demo set env deploy/svc WARMUP_SECONDS=20"
   ruslan "I did not touch the manifest."
   madina "The manifest did not change. Everything around it got slower."
-  kubelet "Twenty-five seconds gone. Asking: are you alive?"
-  # Patience is 25 + 3x5 = 40 seconds against a 50-second start: the kill lands
-  # at 40, ten seconds before the service would have been ready. Both numbers go
-  # to the room before the race rather than after it -- a countdown nobody has
-  # been told the terms of is just a countdown.
+  kubelet "Twelve seconds gone. Asking: are you alive?"
+  # Patience is 12 + 3x1 = 15 seconds against a 20-second start: the kill lands
+  # at 15, five seconds before the service would have been ready. Both numbers
+  # go to the room before the race rather than after it -- a countdown nobody
+  # has been told the terms of is just a countdown.
   say ""
-  say "Two numbers are racing. Patience runs out at forty seconds. The service is ready at fifty."
-  watch_pods 55 "same manifest, slower environment" "app=svc"
+  say "Two numbers are racing. Patience runs out at fifteen seconds. The service is ready at twenty."
+  watch_pods 25 "same manifest, slower environment" "app=svc"
 
   badsay "initialDelaySeconds is a bet that tomorrow looks like today."
 
@@ -136,9 +141,9 @@ b_1_2() {
 
   run "envsubst < $M/12-startup-probe.yaml | kubectl apply -f -"
 
-  # The same 50-second start as a moment ago, and this time nothing punishes it.
-  # Fifty seconds of a pod sitting at 0/1 is exactly enough to say what the
-  # three probes are for; the pods pane on the right keeps showing it.
+  # The same 20-second start as a moment ago, and this time nothing punishes it.
+  # The pod sits at 0/1 while the card explains what the three probes are for;
+  # the pods pane on the right keeps showing it.
   madina "The whole of it is one page. Here."
   teach_madina 'THREE PROBES, THREE QUESTIONS' \
     "$(_col 12 'startup')has it finished booting?" \
@@ -162,7 +167,14 @@ b_1_2() {
 # ── 1.3 ──────────────────────────────────────────────────────────────────────
 b_1_3() {
   timur "Start is fixed. Rolling out the production configuration."
-  timur "Three replicas, 10-second warmup, /work doing a real query against RDS."
+  timur "Three replicas, and /work doing a real query against RDS."
+  # Two application-level changes go out in this one manifest, and the second is
+  # the entire mechanism of the incident. Leaving it inside the diff for the
+  # room to spot is how a step ends up looking like the probe broke on its own.
+  appchange timur 'WARMUP_SECONDS  20 -> 10' \
+    "Real hardware for production, so boot is back to ten seconds."
+  appchange timur 'HEALTHZ_MODE  local -> db' \
+    "And I made /healthz honest: it queries the database now, same as /work. A health check that checks nothing is not a health check."
   ruslan "Touching liveness?"
   timur "Why? It is green."
   madina "It goes to the database through the same pool as /work."
@@ -199,8 +211,9 @@ b_1_3() {
   kubelet "A second gone, no answer. Again. And again."
   kubelet "Three misses. Killing it."
   # The load pod needs ~10s to start and saturate; the first kills land ~15s
-  # after that. 75 seconds shows every replica restart at least once.
-  watch_pods 60 "liveness cannot meet timeoutSeconds: 1" "app=svc"
+  # after that. 45 seconds shows every replica restart at least once, and the
+  # generator's own window is 45 -- this ends with it rather than after it.
+  watch_pods 45 "liveness cannot meet timeoutSeconds: 1" "app=svc"
 
   mark_restarts "incident1-before" "app=svc"
   load_stop
@@ -225,6 +238,10 @@ b_1_4() {
   timur "Then what takes a busy pod out of rotation?"
   madina "Readiness. That one is allowed to be twitchy."
   ruslan "One probe softer, the other sharper. Fine."
+  # The one change here that is not a probe. It is Madina's to announce because
+  # it is Madina's fix, and it is the first thing she names on the card below.
+  appchange madina 'HEALTHZ_MODE  db -> local' \
+    "And /healthz stops leaving the process. Whether the database answers is a readiness question, and readiness already asks it."
   showdiff "$M/13-under-load.yaml" "$M/14-liveness-fixed.yaml"
 
   run "envsubst < $M/14-liveness-fixed.yaml | kubectl apply -f -"
@@ -248,7 +265,7 @@ b_1_4() {
   load_start http 300 "incident1-after" 45s 100
   madina "Same three replicas, same three hundred requests a second, same column."
   madina "This time it should not move at all."
-  watch_pods 60 "RESTARTS should stay at zero" "app=svc"
+  watch_pods 45 "RESTARTS should stay at zero" "app=svc"
 
   mark_restarts "incident1-after" "app=svc"
   load_stop
