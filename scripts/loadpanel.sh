@@ -17,12 +17,12 @@ set -uo pipefail
 
 NS="${NS:-demo}"
 POD=loadgen
-# Three, not four. The pane is eight rows, one of which tmux spends on the
-# border, and the frame is title + blank + headings + ROWS. Four fills it exactly
-# and the title scrolls away the moment anything is a row taller than expected;
-# three leaves a row of slack, and at one redraw a second the extra second of
-# history is worth less than a frame that always holds still.
-ROWS="${ROWS:-3}"
+# The pane is eleven rows, one of which tmux spends on the border, and the frame
+# is title + blank + headings + ROWS + blank + totals. Four history rows leave a
+# row of slack, so the title never scrolls away when a value comes out wider
+# than expected. The pane was eight rows and showed three seconds of history and
+# nothing else, which is a lot of space for four numbers.
+ROWS="${ROWS:-4}"
 
 C_OFF=$'\033[0m'; C_B=$'\033[1m'; C_DIM=$'\033[2m'
 C_BAD=$'\033[1;31m'; C_WARN=$'\033[1;33m'; C_OK=$'\033[1;32m'
@@ -36,20 +36,53 @@ idle() {
   title ''
 }
 
-head_row() { # head_row LABEL MODE RPS
+# mm:ss, because a run is under two minutes and "0:45" reads at a glance where
+# "45s elapsed of 45s" does not.
+clock() { printf '%d:%02d' $(( ${1:-0} / 60 )) $(( ${1:-0} % 60 )); }
+
+width() { local w; w=$(tput cols 2>/dev/null); case "$w" in ''|*[!0-9]*) w=60 ;; esac; printf '%s' "$w"; }
+
+head_row() { # head_row LABEL MODE RPS ELAPSED DURATION
+  local left right pad w
+  w=$(width)
+  left="${1:-load} . ${2:-?} . ${3:-?} rps"
+  # The clock is the thing the room cannot get from anywhere else: the panel
+  # shows four numbers changing and no sense of how long they have left to
+  # change for. Blank when the run has no duration, which is incident 1 -- it
+  # stops when the driver says so.
+  right=''
+  [ -n "${5:-}" ] && [ "${5:-}" != 0 ] && right="$(clock "${4:-0}") / $(clock "$5")"
+  pad=$(( w - 2 - ${#left} - ${#right} - 2 ))
+  [ "$pad" -lt 1 ] && pad=1
   printf '\033[H\033[J'
-  printf '  %s%s%s %s. %s . %s rps%s\n\n' \
-    "$C_B" "${1:-load}" "$C_OFF" "$C_DIM" "${2:-?}" "${3:-?}" "$C_OFF"
-  printf '  %s%6s %7s %6s %6s%s\n' "$C_DIM" 'rps' 'p95' '5xx' 'err' "$C_OFF"
+  printf '  %s%s%s%*s%s%s%s\n\n' "$C_B" "$left" "$C_OFF" "$pad" '' "$C_DIM" "$right" "$C_OFF"
+  printf '  %s%6s %8s %6s %6s%s\n' "$C_DIM" 'rps' 'p95' '5xx' 'err' "$C_OFF"
+}
+
+# What the run has done so far, under the rows that show what it is doing now.
+# Every number here is a sum over the whole log rather than the visible tail,
+# so the footer does not reset when the history scrolls.
+totals_row() { # totals_row SENT ELAPSED TARGET S5 ERR
+  local sent="${1:-0}" el="${2:-0}" target="${3:-0}" s5="${4:-0}" er="${5:-0}" avg=0 colour=''
+  [ "$el" -gt 0 ] && avg=$(( sent / el ))
+  # Amber when the generator cannot place the load it was asked for: that is the
+  # service failing to keep up, and it shows here before it shows anywhere else.
+  [ "$target" -gt 0 ] && [ "$avg" -lt $(( target * 4 / 5 )) ] && colour="$C_WARN"
+  { [ "$s5" -gt 0 ] || [ "$er" -gt 0 ]; } && colour="$C_BAD"
+  printf '\n  %ssent%s %s   %savg%s %s%s/s of %s%s   %s5xx%s %s   %serr%s %s\n' \
+    "$C_DIM" "$C_OFF" "$sent" \
+    "$C_DIM" "$C_OFF" "$colour" "$avg" "$target" "$C_OFF" \
+    "$C_DIM" "$C_OFF" "$s5" "$C_DIM" "$C_OFF" "$er"
 }
 
 # The generator prints `rps 300 p95  12ms 5xx  0 err  0`, with the whole line
 # coloured and a trailing marker when something is wrong. Reading the four
 # numbers out and laying them out here means the columns line up whatever the
 # width of each value, which is the entire point of a table.
-render_running() { # render_running LABEL MODE RPS < log
-  local label="$1" mode="$2" rps="$3" line n p5 s5 er colour
-  head_row "$label" "$mode" "$rps"
+render_running() { # render_running LABEL MODE RPS ELAPSED DURATION SENT S5 ERR < tail
+  local label="$1" mode="$2" rps="$3" el="$4" dur="$5" sent="$6" tot5="$7" toter="$8"
+  local line n p5 s5 er colour
+  head_row "$label" "$mode" "$rps" "$el" "$dur"
   while IFS= read -r line; do
     [[ "$line" =~ ^rps[[:space:]]+([0-9]+)[[:space:]]+p95[[:space:]]+([0-9a-z.]+)[[:space:]]+5xx[[:space:]]+([0-9]+)[[:space:]]+err[[:space:]]+([0-9]+) ]] || continue
     n="${BASH_REMATCH[1]}"; p5="${BASH_REMATCH[2]}"
@@ -66,8 +99,9 @@ render_running() { # render_running LABEL MODE RPS < log
       *s)  colour="$C_WARN" ;;
     esac
     [ "$s5" -gt 0 ] || [ "$er" -gt 0 ] && colour="$C_BAD"
-    printf '  %s%6s %7s %6s %6s%s\n' "$colour" "$n" "$p5" "$s5" "$er" "$C_OFF"
+    printf '  %s%6s %8s %6s %6s%s\n' "$colour" "$n" "$p5" "$s5" "$er" "$C_OFF"
   done
+  totals_row "$sent" "$el" "$rps" "$tot5" "$toter"
 }
 
 # The generator's own last line already reads as prose:
@@ -99,7 +133,7 @@ render_done() { # render_done LABEL < log
 # The uid rather than the name: every load in the show reuses the name `loadgen`,
 # and following by name alone would either stay on a finished run forever or miss
 # the next one entirely.
-current=''; state=idle; label=''; mode=''; rps=''
+current=''; state=idle; label=''; mode=''; rps=''; dur=''
 idle
 
 while true; do
@@ -120,9 +154,12 @@ while true; do
     label=$(printf '%s\n' "$args" | tr ' ' '\n' | sed -n 's/^-label=//p')
     mode=$(printf '%s\n' "$args"  | tr ' ' '\n' | sed -n 's/^-mode=//p')
     rps=$(printf '%s\n' "$args"   | tr ' ' '\n' | sed -n 's/^-rps=//p')
+    # -duration=45s -> 45. Incident 1's loads carry no duration and stop when
+    # the driver deletes the pod, so an empty value here means "no clock".
+    dur=$(printf '%s\n' "$args"   | tr ' ' '\n' | sed -n 's/^-duration=\([0-9]*\)s$/\1/p')
     current="$uid"; state=running
     title "$label"
-    head_row "$label" "$mode" "$rps"
+    head_row "$label" "$mode" "$rps" 0 "$dur"
   fi
 
   if [ "$state" = done ]; then
@@ -131,11 +168,21 @@ while true; do
     continue
   fi
 
-  log=$(kubectl -n "$NS" logs "$POD" --tail=40 2>/dev/null | strip_ansi)
+  # The whole log rather than the last forty lines: the footer sums every second
+  # of the run, and a tail would make those totals restart once the run outlived
+  # the window. Ninety lines of text once a second costs nothing.
+  log=$(kubectl -n "$NS" logs "$POD" 2>/dev/null | strip_ansi)
   if printf '%s\n' "$log" | grep -q '^-- '; then
     printf '%s\n' "$log" | render_done "$label" && state=done
   else
-    printf '%s\n' "$log" | tail -n "$ROWS" | render_running "$label" "$mode" "$rps"
+    # One line a second, so the count of them is the elapsed time.
+    stats=$(printf '%s\n' "$log" | awk '
+      /^rps[ \t]+[0-9]+/ { n++; sent += $2; for (i = 1; i < NF; i++) {
+          if ($i == "5xx") s5 += $(i+1); if ($i == "err") er += $(i+1) } }
+      END { printf "%d %d %d %d", n+0, sent+0, s5+0, er+0 }')
+    set -- $stats
+    printf '%s\n' "$log" | grep '^rps' | tail -n "$ROWS" \
+      | render_running "$label" "$mode" "$rps" "$1" "$dur" "$2" "$3" "$4"
   fi
   sleep 1
 done

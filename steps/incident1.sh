@@ -112,23 +112,23 @@ b_1_2() {
   run "kubectl -n demo get pods -l app=svc"
   ruslan "Green. Told you."
 
-  pause "A week passes. Nothing is deployed and nothing is edited." \
+  pause "A week passes. Timur ships a feature." \
     "click to move a week forward"
 
-  # The week used to pass in narration, which explained the cold cache and the
-  # crowded node to a room that had already been introduced to the character who
-  # does the crowding. He says it himself now: the world moves because someone in
-  # it moved, not because the script needs it to.
-  karpenter "I consolidated last night. Two more containers onto that node, same CPU."
-
-  # Not a step improving the application: the same application, somewhere
-  # slower. It is still a change to WARMUP_SECONDS, so it is still announced --
-  # the room has to see that the manifest is untouched and the world is not.
+  # The week used to pass because the hardware got slower, which is both vague
+  # and unfalsifiable: nothing on screen shows a node getting busier, and the
+  # room is asked to take it. A feature is the honest version of the same event
+  # and it is the one that actually happens to services. It is also a GOOD
+  # change, which is the point of the whole incident: nobody did anything wrong
+  # and the pod dies anyway.
+  timur "Catalogue is preloaded now. /work used to fetch it on every request; it reads it once at boot instead."
+  ruslan "Requests got faster, then."
+  timur "Twice as fast. Boot pays for it."
   appchange timur 'WARMUP_SECONDS  10 -> 20' \
-    "Nothing shipped. The start just takes twenty seconds on this node now, so that is what I am setting it to."
+    "One more thing to do before the port opens. I did not go near the probe."
   run "kubectl -n demo set env deploy/svc WARMUP_SECONDS=20"
-  ruslan "I did not touch the manifest."
-  madina "The manifest did not change. Everything around it got slower."
+  ruslan "I did not touch the probe either."
+  madina "Nobody did. The service grew underneath it."
   kubelet "Twelve seconds gone. Asking: are you alive?"
   # Patience is 12 + 3x1 = 15 seconds against a 20-second start: the kill lands
   # at 15, five seconds before the service would have been ready. Both numbers
@@ -199,11 +199,15 @@ b_1_2() {
 b_1_3() {
   timur "Start is fixed. Rolling out the production configuration."
   timur "Three replicas, and /work doing a real query against RDS."
-  # Two application-level changes go out in this one manifest, and the second is
-  # the entire mechanism of the incident. Leaving it inside the diff for the
-  # room to spot is how a step ends up looking like the probe broke on its own.
-  appchange timur 'WARMUP_SECONDS  20 -> 10' \
-    "Real hardware for production, so boot is back to ten seconds."
+  # WARMUP_SECONDS does not move here any more. It used to drop back to ten on
+  # the grounds that production had better hardware, which contradicted the week
+  # before it -- the environment got slower, then faster, and neither was shown.
+  # The catalogue is still preloaded, so boot still costs twenty, and the
+  # startupProbe from the last step is what makes that nobody's problem.
+  #
+  # One application-level change goes out in this manifest, and it is the entire
+  # mechanism of the incident. Leaving it inside the diff for the room to spot is
+  # how a step ends up looking like the probe broke on its own.
   appchange timur 'HEALTHZ_MODE  local -> db' \
     "And I made /healthz honest: it queries the database now, same as /work. A health check that checks nothing is not a health check."
   ruslan "Touching liveness?"
@@ -229,7 +233,9 @@ b_1_3() {
     'to a kill switch.' \
     -- 'kubectl -n demo rollout status deploy/svc --timeout=5s' 240 "three replicas ready"
 
-  run "kubectl -n demo get pods -l app=svc -o wide"
+  # -o wide adds NOMINATED NODE and READINESS GATES, which are always <none>
+  # and push the line past the pane. The node is the column this step wants.
+  run "kubectl -n demo get pods -l app=svc -o custom-columns='NAME:.metadata.name,READY:.status.containerStatuses[*].ready,STATUS:.status.phase,NODE:.spec.nodeName'"
 
   pause "Here comes traffic. The service is healthy. It is simply busy." \
     "click to start the traffic"

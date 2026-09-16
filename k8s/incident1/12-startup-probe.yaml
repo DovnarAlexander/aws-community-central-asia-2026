@@ -7,11 +7,11 @@
 #
 # WARMUP_SECONDS is 20 rather than 10 on purpose, and it is not a change to the
 # application: 20 is what `kubectl set env` left the service at a minute ago,
-# when the environment got slower. Writing it down here is what keeps the apply
-# from quietly undoing the breakage this step is built on -- the point being
-# that the same slow start that was punished a minute ago is now simply waited
-# for. It used to say 30 while the script claimed 60 out loud, which did exactly
-# that undoing.
+# when the preloaded catalogue doubled the boot. Writing it down here keeps the
+# apply from quietly undoing the breakage this step is built on, the point being
+# that the same slow start punished a minute ago is now simply waited for. It
+# stays at 20 for the rest of the show: the feature was never taken out, and
+# from here on the startupProbe is what makes boot nobody's problem.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

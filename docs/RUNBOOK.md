@@ -177,7 +177,9 @@ Two steps in one: Ruslan's number and Madina's answer to it are a question and i
 and telling them separately cost an extra rollout and an extra step header for one lesson.
 
 `initialDelaySeconds: 12` against a 10-second start fixes it, and holds until the day the
-start gets slower. `kubectl set env WARMUP_SECONDS=20` is that day: patience is 12 + 3×1 =
+start gets slower. That day is Timur shipping a feature: the catalogue is preloaded at boot
+so `/work` stops fetching it per request, which halves request latency and doubles the boot.
+`kubectl set env WARMUP_SECONDS=20` stands in for the new build. Patience is 12 + 3×1 =
 15 seconds, so the kill lands at 15, five seconds before the service would have been ready.
 The manifest is untouched; everything around it changed.
 
@@ -196,9 +198,11 @@ is the change and nothing else: Ruslan's is one line.
 
 Then `startupProbe`: its own budget, 60 checks at 2 seconds, and while it runs liveness is
 not consulted at all. Same 20-second start as the breakage a minute earlier — the manifest
-carries `WARMUP_SECONDS=20` for exactly that reason, so do not "fix" it back to 10. The
-**three probes** card fills the 20 seconds; the pods pane shows 0/1 and `RESTARTS 0`
-throughout, which is the step's whole argument.
+carries `WARMUP_SECONDS=20` for exactly that reason, so do not "fix" it back to 10. It stays
+at 20 for the rest of the show, incident 2 included: the feature was never taken out, and
+once the startupProbe exists the boot time stops being anybody's problem. The **three
+probes** card fills the 20 seconds; the pods pane shows 0/1 and `RESTARTS 0` throughout,
+which is the step's whole argument.
 
 ### 1.3 — Production config, and real traffic
 

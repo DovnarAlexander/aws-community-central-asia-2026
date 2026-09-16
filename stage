@@ -90,10 +90,15 @@ tmux split-window -h -t "$SESSION:0.0" -c "$DEMO_ROOT" -p 38
 # only leave extra rows blank. The remainder goes to the pods, of which incident 2
 # has a great many.
 #
+# Load gets eleven rows rather than eight. Its frame is a title, the four
+# columns, four seconds of history and a line of totals, and at eight the title
+# scrolled away the first time a value came out wider than expected. The three
+# rows come out of the pods pane, which has more than twenty either way.
+#
 # Split bottom-up and at the final height directly: resize-pane after a
 # percentage split hands the freed rows to the neighbour below, and the panes
 # start tugging them back and forth.
-tmux split-window -v -t "$SESSION:0.1" -c "$DEMO_ROOT" -l 8
+tmux split-window -v -t "$SESSION:0.1" -c "$DEMO_ROOT" -l 11
 tmux split-window -v -t "$SESSION:0.1" -c "$DEMO_ROOT" -l 5
 
 tmux select-pane -t "$SESSION:0.0" -T 'DEMO'

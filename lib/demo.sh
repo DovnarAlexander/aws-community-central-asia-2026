@@ -42,7 +42,20 @@ _width() {
   printf '%s\n' "$w"
 }
 
-_rule() { local w; w=$(_width); printf '%*s\n' "$w" '' | tr ' ' "${1:--}"; }
+# The pane, not the measure. _width caps at 100 because a line of prose longer
+# than that is hard to read across, but a rule is not prose: capped, it stops
+# three columns short of the border on a 103-column driver pane and the cards
+# look like they failed to fit. Rules and tables get the real width.
+_pane_width() {
+  local w
+  w=$(stty size 2>/dev/null | awk '{print $2}')
+  case "$w" in ''|*[!0-9]*) w=$(tput cols 2>/dev/null) ;; esac
+  case "$w" in ''|*[!0-9]*) w=80 ;; esac
+  [ "$w" -lt 40 ] && w=40
+  printf '%s\n' "$w"
+}
+
+_rule() { local w; w=$(_pane_width); printf '%*s\n' "$w" '' | tr ' ' "${1:--}"; }
 
 # ${#s} counts characters only in a UTF-8 locale. Without one, wrapping and
 # column arithmetic drift apart, so fix the locale rather than hope.
@@ -537,8 +550,16 @@ load_start() { # load_start MODE RPS LABEL [DURATION] [WORKERS]
   envsubst < "$DEMO_ROOT/k8s/loadgen.yaml" | kubectl apply -f - >/dev/null 2>&1
   echo "$label" > "$DEMO_STATE/load.label"
 
-  [ "$FAST" = 1 ] || printf '  %b> load: %s rps, %s (panel bottom right)%b\n' \
-    "$C_B" "$rps" "$mode" "$C_OFF"
+  # Starting and stopping the load are events in the show, not footnotes. They
+  # used to be one terse line and one dim one, so the room could watch the
+  # numbers move on the right without ever being told what had been turned on.
+  [ "$FAST" = 1 ] || {
+    printf '\n  %bload starts%b  %b%s%b %s. %s . %s rps' \
+      "$C_OK" "$C_OFF" "$C_B" "$label" "$C_OFF" "$C_DIM" "$mode" "$rps"
+    case "$duration" in 0s|'') printf ' until it is stopped' ;; *) printf ' for %s' "$duration" ;; esac
+    printf '%b\n' "$C_OFF"
+    printf '  %swatch the LOAD panel, bottom right%s\n' "$C_DIM" "$C_OFF"
+  }
 }
 
 load_stop_quiet() {
@@ -585,8 +606,13 @@ load_stop_quiet() {
 }
 
 load_stop() {
+  # The label has to be read before load_stop_quiet collects it and takes the
+  # file away, or the line that announces the end of a run cannot name it.
+  local label=''
+  [ -f "$DEMO_STATE/load.label" ] && label=$(cat "$DEMO_STATE/load.label" 2>/dev/null)
   load_stop_quiet
-  [ "$FAST" = 1 ] || printf '  %b# load stopped%b\n' "$C_DIM" "$C_OFF"
+  [ "$FAST" = 1 ] || printf '\n  %bload stops%b   %b%s%b %s. the panel keeps the summary%s\n' \
+    "$C_WARN" "$C_OFF" "$C_B" "${label:-load}" "$C_OFF" "$C_DIM" "$C_OFF"
 }
 
 # compare: a before/after card built from two real measurements.

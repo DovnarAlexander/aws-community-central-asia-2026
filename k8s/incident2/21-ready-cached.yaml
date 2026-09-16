@@ -41,7 +41,7 @@ spec:
             - containerPort: 8080
           env:
             - name: WARMUP_SECONDS
-              value: "10"
+              value: "20"
             - name: WORK_LATENCY_MS
               value: "200"
             - name: POOL_MAX

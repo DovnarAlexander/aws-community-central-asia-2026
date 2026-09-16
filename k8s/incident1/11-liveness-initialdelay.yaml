@@ -11,8 +11,10 @@
 # step about a probe changes the probe.
 #
 # Green here:  warmup 10 < patience 12 + 3x1 = 15, five seconds of margin.
-# Broken next: the step sets WARMUP_SECONDS=20 against those same 15 seconds of
-# patience, so the kill lands at 15 and the pod would have been ready at 20.
+# Broken next: Timur ships a feature that preloads the catalogue at boot, which
+# takes the warmup to 20 against those same 15 seconds of patience. The kill
+# lands at 15 and the pod would have been ready at 20. Nothing about the probe
+# changed and nothing about the feature was a mistake.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

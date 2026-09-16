@@ -66,7 +66,9 @@ b_2_1() {
 # ── 2.2 ──────────────────────────────────────────────────────────────────────
 b_2_2() {
   say "Black Friday. The work arrives as a queue, which is what the whole system was built for."
-  run "kubectl -n demo get scaledobject worker"
+  # The default table is fourteen columns wide and wraps into unreadable
+  # fragments in a 103-column pane. These four are the ones the step is about.
+  run "kubectl -n demo get scaledobject worker -o custom-columns='NAME:.metadata.name,MIN:.spec.minReplicaCount,MAX:.spec.maxReplicaCount,TRIGGER:.spec.triggers[*].type'"
   say ""
   say "KEDA watches the queue. Zero workers right now, because there is nothing to do."
 
