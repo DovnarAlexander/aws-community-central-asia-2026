@@ -157,6 +157,17 @@ b_1_2() {
   madina "Until startup says ready, liveness and readiness are not consulted at all."
   timur "So the start gets its own time budget?"
   madina "Its own. Two minutes if it wants. It does not affect the liveness period."
+  madina "And liveness goes back to what it was for. The initialDelay comes out, the period goes back to five."
+
+  # The twenty in this file is the one app-level number in the show that is not
+  # a decision, and it was the one nobody announced. It is what `set env` put on
+  # the cluster a minute ago; the file still said ten, and applying it with ten
+  # would have handed the service a fast boot again and left the startupProbe
+  # demonstrating patience for a start that no longer needs any. Unannounced it
+  # reads from the third row as though her fix had doubled the boot time, which
+  # is the whole reason every other one of these gets a line.
+  appchange madina 'WARMUP_SECONDS  10 -> 20' \
+    "The twenty is not mine. Timur put it on the cluster a minute ago and the file still said ten, so applying it would have quietly made the service fast again."
   showdiff "$M/11-liveness-initialdelay.yaml" "$M/12-startup-probe.yaml"
 
   run "envsubst < $M/12-startup-probe.yaml | kubectl apply -f -"
