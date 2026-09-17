@@ -85,7 +85,7 @@ def paragraphs(lines, size=None, color=None, bullet=False, mono=False):
         if size:
             rpr += f' sz="{int(size * 100)}"'
         if mono:
-            rpr += '/><a:latin typeface="Courier New"/></a:rPr>'
+            rpr += f'/><a:latin typeface="{MONO}"/></a:rPr>'
             rpr = rpr.replace('/><a:latin', '><a:latin').replace('</a:rPr>', '</a:rPr>')
         else:
             rpr += '/>'
@@ -176,6 +176,64 @@ def clean_layout(deck, layout):
     if dropped:
         deck.write(layout, xml)
     return dropped
+
+
+# ── the kit ──────────────────────────────────────────────────────────────────
+# The template's brand faces, which it embeds, so they are used rather than
+# fought: Duospace is a real monospace and there is no reason to ship Courier
+# New next to it. Sizes follow the deck's own hierarchy -- a title, a section
+# label, body, and a caption that is allowed to be quiet.
+MONO = 'Amazon Ember Duospace'
+# The template embeds its faces as subsets: only the glyphs its own slides used.
+# A plus sign was not among them, so "2 + 3" came out as "2 ✦ 3". Anything with
+# arithmetic or punctuation the template never typed gets a complete face that
+# every Office already ships.
+SAFE = 'Calibri'
+INK, MUTED = '0E2841', '6B7A88'
+TEAL, ORANGE, SURFACE, LINE = '156082', 'E97132', 'F4F7F9', 'DCE4EA'
+SZ_LABEL, SZ_BODY, SZ_CAPTION, SZ_STAT = 13, 14, 10, 40
+
+
+def add_text(xml, box, runs, align='l', anchor='t', face=None):
+    """A free text box. `runs` is a list of (text, size, colour, bold) tuples.
+
+    `face` pins the typeface. Worth doing for anything with arithmetic in it: a
+    substituted face turned the plus in "2 + 3 x 1" into a diamond, and the one
+    number the slide exists for is not the place to find that out on stage.
+    """
+    x, y, w, h = [int(v * EMU) for v in box]
+    i = next_id(xml)
+    body = ''
+    for text, size, colour, bold in runs:
+        if text is None:
+            body += '<a:p/>'
+            continue
+        t = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        latin = f'<a:latin typeface="{face}"/>' if face else ''
+        body += (f'<a:p><a:pPr algn="{align}" marL="0" indent="0"><a:buNone/></a:pPr>'
+                 f'<a:r><a:rPr lang="en-US" sz="{int(size * 100)}" b="{1 if bold else 0}" dirty="0">'
+                 f'<a:solidFill><a:srgbClr val="{colour}"/></a:solidFill>{latin}</a:rPr>'
+                 f'<a:t>{t}</a:t></a:r></a:p>')
+    sp = (f'<p:sp><p:nvSpPr><p:cNvPr id="{i}" name="Text {i}"/><p:cNvSpPr txBox="1"/>'
+          f'<p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="{x}" y="{y}"/>'
+          f'<a:ext cx="{w}" cy="{h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+          f'<a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0"'
+          f' bIns="0" anchor="{anchor}"><a:normAutofit/></a:bodyPr><a:lstStyle/>{body}'
+          f'</p:txBody></p:sp>')
+    return xml.replace('</p:spTree>', sp + '</p:spTree>', 1)
+
+
+def add_card(xml, box, fill=SURFACE, line=LINE):
+    """A quiet panel to put things on. No edge stripes, no accent bars."""
+    x, y, w, h = [int(v * EMU) for v in box]
+    i = next_id(xml)
+    sp = (f'<p:sp><p:nvSpPr><p:cNvPr id="{i}" name="Card {i}"/><p:cNvSpPr/><p:nvPr/>'
+          f'</p:nvSpPr><p:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{w}" cy="{h}"/></a:xfrm>'
+          f'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 4000"/></a:avLst>'
+          f'</a:prstGeom><a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>'
+          f'<a:ln w="9525"><a:solidFill><a:srgbClr val="{line}"/></a:solidFill></a:ln>'
+          f'</p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>')
+    return xml.replace('</p:spTree>', sp + '</p:spTree>', 1)
 
 
 def next_id(xml):
@@ -547,6 +605,157 @@ def sweep(deck):
         print(f'  {removed} unused parts dropped from the template')
 
 
+# ── designed slides ──────────────────────────────────────────────────────────
+# The generic path puts a title over a column of prose, which is the shape of
+# slide this talk spent fifteen slides not being. These are laid out one at a
+# time: what the slide is actually saying decides whether it wants cards, a
+# number, or two labelled columns.
+
+L, R = 0.39, 12.94                 # the template's own margins
+TOP, BOT = 1.55, 6.45
+
+
+def _cards(xml, items, y, h, gap=0.28):
+    """A row of equal panels. Label, then the line, then the consequence."""
+    n = len(items)
+    w = (R - L - gap * (n - 1)) / n
+    for i, (label, line, tail, colour) in enumerate(items):
+        x = L + i * (w + gap)
+        xml = add_card(xml, (x, y, w, h))
+        runs = [(label, SZ_LABEL, colour, True), (None, 0, INK, False),
+                (line, SZ_BODY, INK, False)]
+        if tail:
+            runs += [(None, 0, INK, False), (tail, SZ_CAPTION, MUTED, False)]
+        xml = add_text(xml, (x + 0.3, y + 0.28, w - 0.6, h - 0.5), runs)
+    return xml
+
+
+def d_questions(xml, s, ctx):
+    xml = add_text(xml, (L, TOP, R - L, 0.5),
+                   [(s['prose'].splitlines()[0], 16, INK, False)])
+    xml = _cards(xml, [
+        ('startup', 'has it finished booting?',
+         'while it runs, the other two are not consulted at all', TEAL),
+        ('liveness', 'is the process alive?',
+         'a wrong answer restarts the container', ORANGE),
+        ('readiness', 'can it serve right now?',
+         'a wrong answer takes the pod out of the Service', TEAL),
+    ], TOP + 0.75, 2.1)
+    tail = [l for l in s['prose'].splitlines() if l.startswith('Of everything')]
+    if tail:
+        xml = add_text(xml, (L, TOP + 3.2, R - L, 1.0), [(tail[0], 15, INK, False)])
+    return xml
+
+
+def d_arithmetic(xml, s, ctx):
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    xml = add_text(xml, (L, TOP, 6.1, 0.6), [(lines[0], 15, INK, False)])
+    code = s['code'][0]['text'].split('\n')
+    xml = add_card(xml, (L, TOP + 0.8, 6.1, 2.5))
+    xml = add_text(xml, (L + 0.28, TOP + 1.0, 5.55, 2.1),
+                   [(c, 11, INK, False) for c in code])
+    # The number the whole slide is about, at the size it deserves.
+    xml = add_card(xml, (7.0, TOP + 0.8, R - 7.0, 2.5), fill='FFFFFF')
+    xml = add_text(xml, (7.3, TOP + 1.0, R - 7.3, 0.95),
+                   [('2 + 3 x 1 = 5 s', SZ_STAT, ORANGE, True)], face=SAFE)
+    xml = add_text(xml, (7.3, TOP + 2.0, R - 7.3, 1.2),
+                   [('patience runs out at five, the service is ready at ten',
+                     SZ_CAPTION, MUTED, False),
+                    (None, 0, INK, False),
+                    ('The pod dies every single time, and nothing in the manifest is wrong.',
+                     SZ_BODY, INK, True)])
+    last = [l for l in lines if l.startswith('timeoutSeconds')]
+    if last:
+        xml = add_text(xml, (L, TOP + 3.55, R - L, 0.9), [(last[0], 14, INK, False)])
+    return xml
+
+
+def d_review(xml, s, ctx):
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    xml = add_text(xml, (L, TOP, 6.1, 2.4),
+                   [(lines[0], 15, INK, True), (None, 0, INK, False),
+                    (lines[1], SZ_BODY, INK, False)])
+    xml = add_card(xml, (L, TOP + 2.6, 6.1, 1.5), fill='FFFFFF')
+    xml = add_text(xml, (L + 0.3, TOP + 2.8, 5.5, 1.1),
+                   [('57', SZ_STAT, ORANGE, True),
+                    ('max_connections on the database it was checking', SZ_CAPTION, MUTED, False)],
+                   face=SAFE)
+    rows = s.get('tables', [[]])[0]
+    if rows:
+        xml = add_card(xml, (7.0, TOP + 0.1, R - 7.0, 3.2), fill='FFFFFF')
+        cw = (R - 7.0 - 0.6) / len(rows[0])
+        for ri, row in enumerate(rows):
+            for ci, cell in enumerate(row):
+                head = ri == 0
+                xml = add_text(xml, (7.3 + ci * cw, TOP + 0.35 + ri * 0.62, cw, 0.5),
+                               [(cell, 11 if head else 15, MUTED if head else INK, head)])
+    tail = [l for l in lines if l.startswith('max_connections')]
+    if tail:
+        xml = add_text(xml, (L, TOP + 4.35, R - L, 0.8), [(tail[0], 14, INK, False)])
+    return xml
+
+
+def d_fix(xml, s, ctx):
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    parts, cur = [], None
+    for l in lines:
+        m = re.match(r'(\d) · (.+)', l)
+        if m:
+            cur = [m.group(1), m.group(2), []]
+            parts.append(cur)
+        elif cur is not None:
+            cur[2].append(l)
+    items = [(f"{n} · {head}", body[0] if body else '',
+              body[1] if len(body) > 1 else '', TEAL if n != '3' else ORANGE)
+             for n, head, body in parts[:3]]
+    xml = _cards(xml, items, TOP, 2.6)
+    closing = [l for l in lines if l.startswith('Twelve workers')]
+    if closing:
+        xml = add_text(xml, (L, TOP + 3.0, R - L, 0.9),
+                       [(closing[0], 16, INK, True)])
+    return xml
+
+
+def d_checklist(xml, s, ctx):
+    """Two labelled groups, side by side, the way the slide is actually written."""
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    bullets = set(s['bullets'])
+    groups, cur = [], None
+    for l in lines:
+        if l not in bullets and len(l) < 40 and not l.endswith('.'):
+            cur = (l, [])
+            groups.append(cur)
+        elif cur is not None and l in bullets:
+            cur[1].append(l)
+    if len(groups) < 2:
+        return None
+    w = (R - L - 0.5) / 2
+    for i, (head, items) in enumerate(groups[:2]):
+        x = L + i * (w + 0.5)
+        xml = add_text(xml, (x, TOP, w, 0.4), [(head, SZ_LABEL, TEAL, True)])
+        runs = []
+        for it in items:
+            runs += [(it, SZ_BODY, INK, False), (None, 0, INK, False)]
+        xml = add_text(xml, (x, TOP + 0.55, w, 4.2), runs)
+    # Whatever did not land in a column. Without this the closing line printed
+    # twice: once at the bottom of the second group and once again underneath it.
+    placed = {h for h, _ in groups[:2]} | {i for _, items in groups[:2] for i in items}
+    tail = [l for l in lines if l not in placed]
+    if tail:
+        xml = add_text(xml, (L, BOT - 0.55, R - L, 0.5), [(tail[-1], 15, INK, True)])
+    return xml
+
+
+DESIGN = {
+    'Something is asking your container questions': d_questions,
+    'It is arithmetic, not a bug': d_arithmetic,
+    'A readiness probe that passes review': d_review,
+    'The fix is three things, and only one is a probe': d_fix,
+    'The checklist · liveness and startup': d_checklist,
+    'The checklist · readiness, and the blast radius': d_checklist,
+}
+
+
 def fill(deck, work, kind, s, slide, title_of, number):
     """One of our slides, written into its clone of a template slide."""
     xml = deck.read(slide)
@@ -605,6 +814,20 @@ def fill(deck, work, kind, s, slide, title_of, number):
                        + paragraphs(s['bullets'], bullet=True, size=15)
                        + paragraphs(lead[1:], size=11, color='6B7280'))
         xml = drop(xml, 'body', '10')
+
+    elif s['title'] in DESIGN:
+        # Laid out by hand: the slide's own shape rather than a column of prose.
+        xml = set_text(xml, 'title', None, paragraphs([s['title']]))
+        xml = drop(xml, 'body', '2')
+        xml = drop(xml, 'body', '10')
+        designed = DESIGN[s['title']](xml, s, None)
+        xml = designed if designed is not None else xml
+        xml = set_furniture(xml, number)
+        xml = add_clicks(xml, s)
+        deck.write(slide, xml)
+        if s['notes'].strip():
+            add_notes(deck, slide, s['notes'])
+        return
 
     else:
         xml = set_text(xml, 'title', None, paragraphs([s['title']]))
