@@ -48,6 +48,9 @@ CLICKS = {
 }
 # Slides the Slidev deck reveals a piece at a time rather than all at once.
 REVEAL = {'The fix is three things, and only one is a probe'}
+# Measured off the rendered PNGs: a diagram wider than about 2.2 does not belong
+# in a half-slide column.
+ASPECT = {'architecture': 3.00, 'loop': 2.02, 'probes': 2.65, 'verdicts': 2.77}
 ACCENT = 'E97132'                     # the template theme's accent2
 
 DIAGRAM = {'What is actually running': 'architecture', 'The loop': 'loop',
@@ -568,11 +571,12 @@ def fill(deck, work, kind, s, slide, title_of, number):
         xml = set_text(xml, 'subTitle', '1', paragraphs(lead))
 
     elif kind == 'cast':
-        # The divider's ground, and the film over everything else on it.
+        # Edge to edge, and nothing else on the slide. The film is padded to 16:9
+        # when it is cut, so it fills the slide exactly; a caption or a footer
+        # over it would be the template arguing with the terminal, and the step
+        # number is already printed inside the recording by tmux.
         step = s['step']
-        xml = move(xml, 'ctrTitle', None, (0.34, 0.16, 12.6, 0.42))
-        xml = set_text(xml, 'ctrTitle', None,
-                       paragraphs([f"{step}  ·  {title_of.get(step, '')}"], size=12))
+        xml = drop(xml, 'ctrTitle')
         xml = drop(xml, 'subTitle')
         mp4 = os.path.join(work, 'video', step + '.mp4')
         cover = os.path.join(work, 'covers', step + '.jpg')
@@ -583,36 +587,73 @@ def fill(deck, work, kind, s, slide, title_of, number):
             rc = deck.add_rel(slide, IMAGE_REL, deck.add_media(cover, f'rec-{step}.jpg'))
             # 1920x1294 is the recording's own shape; height first keeps the
             # terminal as large as the slide allows without cropping it.
-            # Left-aligned on the template's own margin rather than centred:
-            # the layout prints "AWS User Groups" in the bottom right corner, and
-            # a centred film of this shape lands on top of it.
-            h = 6.72
-            w = h * 1920 / 1294
-            xml = add_video(xml, rv, rm, rc, (0.34, 0.62, w, h))
+            xml = add_video(xml, rv, rm, rc, (0, 0, SLIDE_W, SLIDE_H))
+
+    elif s['title'] == 'Alexander Dovnar':
+        xml = set_text(xml, 'title', None, paragraphs([s['title']]))
+        portrait = os.path.join(work, 'img', 'portrait.png')
+        if os.path.exists(portrait):
+            rid = deck.add_rel(slide, IMAGE_REL, deck.add_media(portrait, 'portrait.png'))
+            xml = add_pic(xml, rid, (0.39, 1.8, 3.1, 3.1), 'Portrait')
+        # prose carries the list items as well, so the lead-in and the links are
+        # whatever is left once the bullets are taken out of it.
+        bullets = set(s['bullets'])
+        lead = [l for l in s['prose'].splitlines() if len(l) > 3 and l not in bullets]
+        xml = move(xml, 'body', '2', (3.9, 1.8, 8.95, 4.7))
+        xml = set_text(xml, 'body', '2',
+                       paragraphs(lead[:1], size=18)
+                       + paragraphs(s['bullets'], bullet=True, size=15)
+                       + paragraphs(lead[1:], size=11, color='6B7280'))
+        xml = drop(xml, 'body', '10')
 
     else:
         xml = set_text(xml, 'title', None, paragraphs([s['title']]))
         lead = [l for l in s['prose'].splitlines() if len(l) > 3]
-        left = s['bullets'] or lead[:5]
+        left = s['bullets'] or lead[:6]
+        diagram = DIAGRAM.get(s['title'])
+        # A wide diagram in the right-hand column is a wide picture in a tall box:
+        # it fills the width and leaves two thirds of the height empty. Those get
+        # the text across the top and the picture across the whole slide below.
+        wide = diagram and ASPECT.get(diagram, 1) > 2.2
         if kind == 'one':
             # The layout's body is the left half, which leaves a checklist
             # sitting in a column with the other half of the slide empty.
-            xml = move(xml, 'body', '2', (0.38, 1.87, 12.45, 4.4))
-        xml = set_text(xml, 'body', '2', paragraphs(left, bullet=bool(s['bullets'])))
+            xml = move(xml, 'body', '2', (0.38, 1.8, 12.45, 4.6))
+        elif wide:
+            # Sized to the text rather than to a guess: a fixed shallow box clips
+            # a six-line slide mid-word, which is how "budget the pool" came out
+            # as "budget the pc". The picture takes whatever is left above the
+            # footer.
+            wide_h = min(2.6, 0.30 * len(left) + 0.25)
+            xml = move(xml, 'body', '2', (0.38, 1.65, 12.45, wide_h))
+        else:
+            xml = move(xml, 'body', '2', (0.38, 1.8, 6.06, 4.6))
+        xml = set_text(xml, 'body', '2',
+                       paragraphs(left, bullet=bool(s['bullets']), size=16))
         if kind == 'two':
-            right_box = (6.78, 1.86, 6.06, 4.4)
-            diagram = DIAGRAM.get(s['title'])
             if s['code']:
-                code = s['code'][0]['text'].split('\n')[:16]
-                xml = set_text(xml, 'body', '10', paragraphs(code, size=11, mono=True))
+                xml = move(xml, 'body', '10', (6.78, 1.8, 6.06, 4.6))
+                code = s['code'][0]['text'].split('\n')[:18]
+                xml = set_text(xml, 'body', '10', paragraphs(code, size=12, mono=True))
             elif s.get('tables'):
-                rows = s['tables'][0]
-                flat = ['   '.join(r) for r in rows]
-                xml = set_text(xml, 'body', '10', paragraphs(flat, size=13, mono=True))
+                xml = move(xml, 'body', '10', (6.78, 1.8, 6.06, 4.6))
+                flat = ['   '.join(r) for r in s['tables'][0]]
+                xml = set_text(xml, 'body', '10', paragraphs(flat, size=14, mono=True))
             elif diagram and os.path.exists(img(diagram)):
                 xml = drop(xml, 'body', '10')
                 rid = deck.add_rel(slide, IMAGE_REL, deck.add_media(img(diagram), diagram + '.png'))
-                xml = add_pic(xml, rid, right_box, diagram)
+                ar = ASPECT.get(diagram, 1.5)
+                if wide:
+                    # Bounded by height, not width: the footer sits at 6.68in and
+                    # a full-width picture of this shape lands on top of it.
+                    top, bottom = 1.65 + wide_h + 0.3, 6.45
+                    h = bottom - top
+                    w = min(11.9, h * ar)
+                    xml = add_pic(xml, rid, ((SLIDE_W - w) / 2, top, w, h), diagram)
+                else:
+                    w = 6.06
+                    h = min(4.6, w / ar)
+                    xml = add_pic(xml, rid, (6.78, 1.8 + (4.6 - h) / 2, w, h), diagram)
             else:
                 xml = drop(xml, 'body', '10')
 

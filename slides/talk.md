@@ -54,6 +54,47 @@ you 2.2 and nothing else.
 
 ---
 layout: default
+---
+
+# Alexander Dovnar
+
+<div class="grid grid-cols-[auto_1fr] gap-8 mt-4 items-start">
+
+<img src="/brand/portrait.png" class="w-40 h-40 rounded-full object-cover" alt="Alexander Dovnar" />
+
+<div>
+
+<p class="nq-lede">CTO at <strong>Naviteq</strong>. Co-host of <strong>DevOps Kitchen Talks</strong>, 70+ episodes and 300k+ views.</p>
+
+<ul class="nq-body mt-3">
+<li><strong>AWS Community Builder</strong>, Containers — since 2023</li>
+<li><strong>Terragrunt Ambassador</strong> — since 2025</li>
+<li>Kubestronaut · CKA · CKS · AWS Solutions Architect Professional · AWS Security Specialty</li>
+<li>Co-author of <em>Cracking the Kubernetes Interview</em>, Packt</li>
+</ul>
+
+<p class="nq-body mt-3 text-sm">alex-dovnar.in · youtube.com/c/DevOpsKitchenTalks · linkedin.com/in/dovnaralex · github.com/DovnarAlexander</p>
+
+</div>
+</div>
+
+<!--
+"Thirty seconds on who is talking, and then we go to the terminal.
+
+I run engineering at Naviteq, and I co-host DevOps Kitchen Talks, which is
+seventy-odd episodes of two people arguing about infrastructure. I am an AWS
+Community Builder in the containers track and a Terragrunt ambassador, and I
+wrote half of a book about Kubernetes interviews.
+
+The reason any of that matters today is that every one of those two incidents
+happened to somebody I know, and one of them happened to me."
+
+The links are on the slide because somebody always asks for the podcast. The
+QR at the end carries all of them again.
+-->
+
+---
+layout: default
 class: nq-cast-slide nq-cast-full
 ---
 

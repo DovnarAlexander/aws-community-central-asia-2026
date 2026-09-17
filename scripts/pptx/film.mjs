@@ -108,9 +108,19 @@ for (const c of steps) {
   list.push(`file 'f${String(times.length - 1).padStart(5, '0')}.jpg'`)
   fs.writeFileSync(`${work}/list.txt`, list.join('\n'))
 
+  // Padded to the slide's shape. The recording is 167x44 characters, which comes
+  // out near 3:2, and a slide is 16:9; played at its own proportions it sits in
+  // the middle of the slide with the template showing around it, which is the
+  // one place the template and the terminal fight. The bars are the terminal's
+  // own background colour out of the cast header, so the film simply fills the
+  // slide. Padding rather than cropping: every column of the stage stays.
+  const bg = (JSON.parse(fs.readFileSync(`${CASTS}/full.cast`, 'utf8').split('\n')[0])
+    .term?.theme?.bg || '#1e1e1e').replace('#', '0x')
+  const padW = Math.round(H * 16 / 9 / 2) * 2
   const mp4 = `${OUT}/video/${c.step}.mp4`
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', `${work}/list.txt`,
-    '-r', '30', '-c:v', 'libx264', '-preset', 'slow', '-crf', CRF, '-tune', 'stillimage',
+    '-r', '30', '-vf', `pad=${padW}:${H}:(ow-iw)/2:0:color=${bg}`,
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', CRF, '-tune', 'stillimage',
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4])
   // A poster, so the slide shows the terminal rather than pptxgenjs's grey
   // play-button placeholder while the video waits to start.
@@ -118,7 +128,7 @@ for (const c of steps) {
     '-i', mp4, '-vframes', '1', '-q:v', '4', `${OUT}/covers/${c.step}.jpg`])
   fs.rmSync(work, { recursive: true, force: true })
   const mb = fs.statSync(mp4).size / 1048576
-  console.log(`  ${c.step.padEnd(5)} ${String(Math.round(end - c.from)).padStart(3)}s  ${WIDTH}x${H}  ${times.length} frames  ${mb.toFixed(1)} MB`)
+  console.log(`  ${c.step.padEnd(5)} ${String(Math.round(end - c.from)).padStart(3)}s  ${padW}x${H} (16:9)  ${times.length} frames  ${mb.toFixed(1)} MB`)
 }
 await browser.close()
 srv.close()
