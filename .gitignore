@@ -61,6 +61,8 @@ infra/local.hcl
 # so it is not a build artefact, it is the artefact.
 slides/dist/
 slides/talk.pdf
+slides/talk.pptx
+slides/talk-animated-proof.pptx
 slides/node_modules/
 
 .env
