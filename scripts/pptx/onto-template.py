@@ -881,8 +881,73 @@ def d_loop(xml, s, ctx):
     return animate(xml, steps, set())
 
 
+def d_verdicts(xml, s, ctx):
+    """The same failed check down two probes, as shapes rather than a picture.
+
+    The slide's own sentence is that one failure costs two different things, so
+    the two branches arrive one press at a time and the room can be asked which
+    one it would rather have before the second appears.
+    """
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    xml = add_text(xml, (L, TOP, R - L, 0.5), [(lines[0], 16, INK, False)])
+
+    root_w = 4.3
+    xml, root = add_shape(xml, ((SLIDE_W - root_w) / 2, TOP + 0.55, root_w, 0.55),
+                          'roundRect', fill=SURFACE, line=LINE,
+                          text='a pod that is working fine', size=14, adj=20000)
+
+    branches = [
+        (0.62, ORANGE, 'liveness says no', 'kubelet KILLS the container',
+         'work in flight dies  ·  the pool is rebuilt  ·  the cache is cold again',
+         'irreversible  ·  one job: notice a process that will never recover'),
+        (6.94, TEAL, 'readiness says no', 'the pod leaves the EndpointSlice',
+         'it keeps running  ·  no traffic reaches it  ·  it comes back by itself',
+         'reversible  ·  slow is a readiness question, never a liveness one'),
+    ]
+    groups = []
+    for x, colour, head, verdict, detail, note in branches:
+        bw = 5.77
+        ids = []
+        xml, a = add_shape(xml, (x + bw / 2 - 0.16, TOP + 1.20, 0.32, 0.42),
+                           'downArrow', fill=MUTED, line=None)
+        ids.append(a)
+        xml, h1 = add_shape(xml, (x, TOP + 1.70, bw, 0.52), 'roundRect',
+                            fill='FFFFFF', line=colour, text=head, size=14,
+                            colour=colour, bold=True, adj=20000)
+        ids.append(h1)
+        xml, a2 = add_shape(xml, (x + bw / 2 - 0.16, TOP + 2.30, 0.32, 0.35),
+                            'downArrow', fill=MUTED, line=None)
+        ids.append(a2)
+        xml, h2 = add_shape(xml, (x, TOP + 2.73, bw, 0.55), 'roundRect',
+                            fill='FFFFFF', line=colour, text=verdict, size=14, adj=20000)
+        ids.append(h2)
+        xml = add_text(xml, (x + 0.1, TOP + 3.38, bw - 0.2, 0.8),
+                       [(detail, SZ_CAPTION, MUTED, False), (None, 0, INK, False),
+                        (note, SZ_CAPTION, colour, True)], align='ctr')
+        ids.append(str(next_id(xml) - 1))
+        groups.append(ids)
+
+    tail = [l for l in lines if l.startswith('Which makes')]
+    last = None
+    if tail:
+        # The branch captions end at 5.73in, so this starts below them rather
+        # than across them.
+        xml = add_text(xml, (L, 5.95, R - L, 0.5), [(tail[0], 15, INK, True)])
+        last = str(next_id(xml) - 1)
+
+    steps, ident = [], 10
+    for ids in groups:
+        step, ident = appear_group(ids, ident)
+        steps.append(step)
+    if last:
+        step, ident = appear_group([last], ident)
+        steps.append(step)
+    return animate(xml, steps, set())
+
+
 DESIGN = {
     'The loop': d_loop,
+    'The question the probe was asking': d_verdicts,
     'Something is asking your container questions': d_questions,
     'It is arithmetic, not a bug': d_arithmetic,
     'A readiness probe that passes review': d_review,

@@ -117,9 +117,30 @@ for (const c of steps) {
   const bg = (JSON.parse(fs.readFileSync(`${CASTS}/full.cast`, 'utf8').split('\n')[0])
     .term?.theme?.bg || '#1e1e1e').replace('#', '0x')
   const padW = Math.round(H * 16 / 9 / 2) * 2
+
+  // A progress bar burnt into the film, so the slide itself says how much of the
+  // step is left. PowerPoint cannot report a video's position on the slide, and a
+  // PowerPoint animation timed to match would drift the moment playback did.
+  // In the film it cannot drift.
+  //
+  // A bar rather than a clock because this ffmpeg has no drawtext -- no
+  // libfreetype -- and because a presenter reads a proportion faster than digits.
+  // The ticks every thirty seconds are what make it absolute as well: count the
+  // marks left of the end and you have the time.
+  const BAR = 10
+  const secs = end - c.from
+  const bars = [
+    `drawbox=x=0:y=ih-${BAR}:w=iw:h=${BAR}:color=0x000000@0.55:t=fill`,
+    `drawbox=x=0:y=ih-${BAR}:w='iw*t/${secs.toFixed(3)}':h=${BAR}:color=0xE97132@0.95:t=fill`,
+  ]
+  for (let mark = 30; mark < secs; mark += 30) {
+    const at = (mark / secs).toFixed(5)
+    bars.push(`drawbox=x='iw*${at}':y=ih-${BAR}:w=3:h=${BAR}:color=0xFFFFFF@0.45:t=fill`)
+  }
+
   const mp4 = `${OUT}/video/${c.step}.mp4`
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', `${work}/list.txt`,
-    '-r', '30', '-vf', `pad=${padW}:${H}:(ow-iw)/2:0:color=${bg}`,
+    '-r', '30', '-vf', [`pad=${padW}:${H}:(ow-iw)/2:0:color=${bg}`, ...bars].join(','),
     '-c:v', 'libx264', '-preset', 'slow', '-crf', CRF, '-tune', 'stillimage',
     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4])
   // A poster, so the slide shows the terminal rather than pptxgenjs's grey
