@@ -457,7 +457,14 @@ tasks:
           node scripts/pptx/film.mjs "$WORK"
         fi
         printf '\n  \033[1mdeck\033[0m\n'
-        node scripts/pptx/build.mjs "$WORK" slides/talk.pptx
+        # With the conference template in slides/, the deck is built on top of
+        # it: their masters, layouts, theme, grid and footer, and our slides
+        # cloned from the quiet ones. Without it, the standalone builder.
+        if [ -f slides/template.pptx ]; then
+          ./scripts/pptx/onto-template.py "$WORK" slides/template.pptx slides/talk.pptx
+        else
+          node scripts/pptx/build.mjs "$WORK" slides/talk.pptx
+        fi
         ./scripts/pptx/timing.py slides/talk.pptx "${PAUSE_CLICKS:-0}"
         printf '\n  \033[1;32m✓\033[0m slides/talk.pptx -- %s\n\n' \
           "$(du -h slides/talk.pptx | cut -f1)"

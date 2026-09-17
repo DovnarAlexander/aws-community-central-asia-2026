@@ -63,6 +63,10 @@ slides/dist/
 slides/talk.pdf
 slides/talk.pptx
 
+# The conference template. It is theirs, it is 127MB, and the export needs it
+# present rather than versioned.
+slides/template.pptx
+
 # `task deck:pptx` films the recordings into here. Rebuilding is one command and
 # the videos are forty megabytes, so the work directory stays out of the repo.
 .pptx-build/
