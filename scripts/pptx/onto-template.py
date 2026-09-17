@@ -945,8 +945,75 @@ def d_verdicts(xml, s, ctx):
     return animate(xml, steps, set())
 
 
+def d_architecture(xml, s, ctx):
+    """What is running, revealed along the path a request takes.
+
+    This one was left as a picture on the grounds that a reference drawing has
+    no order to reveal it in. That was wrong: the order is the request. It
+    arrives at the api, goes on the queue, a worker picks it up and reaches the
+    database, and only then do the two autoscalers appear, watching. The
+    database is the one box in the other colour because it is the wall
+    everything in the next twenty minutes runs into.
+    """
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    if lines:
+        xml = add_text(xml, (L, TOP, R - L, 0.5), [(lines[0], 16, INK, False)])
+
+    bw, bh = 3.6, 1.0
+    xs = [0.62, 4.62, 8.62]
+    top, bot = 2.25, 4.55
+    NODES = [
+        # box, row, colour, label
+        (xs[0], top, TEAL, 'api\n/work  /healthz  /ready'),
+        (xs[1], top, TEAL, 'SQS work queue'),
+        (xs[2], top, TEAL, 'worker\nSQS consumer'),
+        (xs[2], bot, ORANGE, 'RDS PostgreSQL\nmax_connections 57'),
+        (xs[1], bot, TEAL, 'KEDA\nreads queue depth'),
+        (xs[0], bot, TEAL, 'Karpenter\nbuys spot nodes'),
+    ]
+    ids = []
+    for x, y, colour, label in NODES:
+        xml, i = add_shape(xml, (x, y, bw, bh), 'roundRect', fill='FFFFFF',
+                           line=colour, text=label.replace('\n', '   ·   '),
+                           size=13, colour=INK, adj=12000)
+        ids.append(i)
+
+    gap_x = xs[0] + bw + 0.04, xs[1] + bw + 0.04
+    mid = bh / 2 - 0.16
+    ARROWS = [
+        ('rightArrow', gap_x[0], top + mid, 0.32, 0.32),          # api -> queue
+        ('rightArrow', gap_x[1], top + mid, 0.32, 0.32),          # queue -> worker
+        ('downArrow', xs[2] + bw / 2 - 0.16, top + bh + 0.1, 0.32, bot - top - bh - 0.2),
+        ('downArrow', xs[1] + bw / 2 - 0.16, top + bh + 0.1, 0.32, bot - top - bh - 0.2),
+        ('leftArrow', gap_x[0], bot + mid, 0.32, 0.32),           # KEDA -> Karpenter
+    ]
+    arrows = []
+    for prst, x, y, w, h in ARROWS:
+        xml, i = add_shape(xml, (x, y, w, h), prst, fill=MUTED, line=None)
+        arrows.append(i)
+
+    tail = lines[1] if len(lines) > 1 else None
+    last = None
+    if tail:
+        xml = add_text(xml, (L, BOT - 0.75, R - L, 0.75), [(tail, SZ_CAPTION, MUTED, False)])
+        last = str(next_id(xml) - 1)
+
+    # The request first, then the machinery that reacts to it.
+    order = [[ids[0]], [arrows[0], ids[1]], [arrows[1], ids[2]],
+             [arrows[2], ids[3]], [arrows[3], ids[4]], [arrows[4], ids[5]]]
+    steps, ident = [], 10
+    for group in order:
+        step, ident = appear_group(group, ident)
+        steps.append(step)
+    if last:
+        step, ident = appear_group([last], ident)
+        steps.append(step)
+    return animate(xml, steps, set())
+
+
 DESIGN = {
     'The loop': d_loop,
+    'What is actually running': d_architecture,
     'The question the probe was asking': d_verdicts,
     'Something is asking your container questions': d_questions,
     'It is arithmetic, not a bug': d_arithmetic,
