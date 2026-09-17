@@ -159,12 +159,19 @@ def set_furniture(xml, n):
     return xml
 
 
+# The template prints the programme's name rather than this event's. Both live
+# in the layouts, so they are named once here rather than on twenty-three slides.
+EVENT = 'AWS User Group Central Asia 2026, Tashkent'
+
+
 def clean_layout(deck, layout):
-    """Take the template's own leftovers out of a layout we are going to use.
+    """Take the template's own leftovers out of a layout we are going to use,
+    and put this event's name where the programme's generic one was.
 
     slideLayout30 and its neighbours carry a text box reading "<Placeholder
     Text>". It belongs to the layout rather than to any slide, so it prints on
-    every slide built from it and cannot be removed slide by slide.
+    every slide built from it and cannot be removed slide by slide. The same is
+    true of the "AWS User Groups" line in the corner of the covers and dividers.
     """
     xml = deck.read(layout)
     dropped = 0
@@ -173,7 +180,9 @@ def clean_layout(deck, layout):
         if 'Placeholder Text' in txt and '<p:ph ' not in sp:
             xml = xml.replace(sp, '', 1)
             dropped += 1
-    if dropped:
+    renamed = '<a:t>AWS User Groups</a:t>' in xml
+    xml = xml.replace('<a:t>AWS User Groups</a:t>', f'<a:t>{EVENT}</a:t>')
+    if dropped or renamed:
         deck.write(layout, xml)
     return dropped
 
@@ -1072,6 +1081,11 @@ def fill(deck, work, kind, s, slide, title_of, number):
         if os.path.exists(portrait):
             rid = deck.add_rel(slide, IMAGE_REL, deck.add_media(portrait, 'portrait.png'))
             xml = add_pic(xml, rid, (0.39, 1.8, 3.1, 3.1), 'Portrait')
+        # The company he says the first line of the slide is about.
+        mark = os.path.join(work, 'img', 'logo.png')
+        if os.path.exists(mark):
+            rid = deck.add_rel(slide, IMAGE_REL, deck.add_media(mark, 'naviteq.png'))
+            xml = add_pic(xml, rid, (0.39, 5.15, 1.7, 1.7 * 352 / 960), 'Naviteq')
         # prose carries the list items as well, so the lead-in and the links are
         # whatever is left once the bullets are taken out of it.
         bullets = set(s['bullets'])
