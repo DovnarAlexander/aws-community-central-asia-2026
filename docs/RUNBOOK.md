@@ -397,6 +397,33 @@ back in the geometry they were recorded in; the size is never pinned in the deck
 knowing before reaching for `native`: every column added is a column the same slide width
 has to divide between, so a full-screen cast is comfortable on a laptop and small in a room.
 
+### The PowerPoint export
+
+A conference that wants the deck on its own laptop asks for `.pptx`, and unlike the PDF this
+one keeps the recordings:
+
+```sh
+task deck:pptx                     # slides/talk.pptx, recordings included
+PAUSE_CLICKS=2 task deck:pptx      # and the clicker can pause them
+```
+
+Each recorded step becomes an H.264 video at the recording's own resolution, timed by the
+cast rather than by whatever the browser managed to capture, and it **starts on its own when
+the slide arrives** — pptxgenjs writes no `<p:timing>` at all, so without
+`scripts/pptx/timing.py` PowerPoint waits for somebody to find the play button with a mouse.
+Presenter notes come across on every slide.
+
+`PAUSE_CLICKS` is the one that needs a decision. Each one adds a click step that toggles the
+video, so two of them buy pause-then-resume from the clicker. They are not free: a step that
+goes unused still has to be clicked past before the slide will advance, so at `PAUSE_CLICKS=2`
+a step you chose not to pause costs two extra presses. The default is zero — the recording
+plays, and the next press moves on.
+
+It needs `ffmpeg` and, once, `npm i -g pptxgenjs playwright-chromium`. Filming is the slow
+part and is skipped when `.pptx-build/video` is newer than the recording, so a rebuild after
+editing `talk.md` takes seconds. Delete that directory to film again. Fonts are Calibri and
+Courier New rather than the deck's own: PowerPoint renders what the opener has installed.
+
 ## Afterwards
 
 ```sh

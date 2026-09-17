@@ -62,6 +62,10 @@ infra/local.hcl
 slides/dist/
 slides/talk.pdf
 slides/talk.pptx
+
+# `task deck:pptx` films the recordings into here. Rebuilding is one command and
+# the videos are forty megabytes, so the work directory stays out of the repo.
+.pptx-build/
 slides/talk-animated-proof.pptx
 slides/node_modules/
 
@@ -69,3 +73,6 @@ slides/node_modules/
 
 # macOS
 .DS_Store
+
+# Office leaves a lock file beside an open document
+~$*

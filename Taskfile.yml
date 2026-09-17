@@ -418,6 +418,50 @@ tasks:
         PY
         printf '  \033[1;32m✓\033[0m docs/qr.txt and slides/public/qr.svg — %s\n' "{{.DEMO_URL}}"
 
+  deck:pptx:
+    desc: export a PowerPoint deck with the recordings as playable video — task deck:pptx
+    silent: true
+    cmds:
+      # PDF is what SlideShare takes; PPTX is what a conference asks for when it
+      # wants to put the deck on its own laptop. Unlike the PDF this one keeps the
+      # recordings: each cast slide carries the step as H.264 video, which
+      # PowerPoint plays natively and starts on its own when the slide arrives.
+      - |
+        command -v ffmpeg >/dev/null 2>&1 || {
+          printf '  the recordings need ffmpeg: \033[1mbrew install ffmpeg\033[0m\n' >&2; exit 1
+        }
+        export NODE_PATH="${NODE_PATH:-$(npm root -g)}"
+        node -e "require.resolve('pptxgenjs'); require.resolve('playwright-chromium')" 2>/dev/null || {
+          printf '  export needs two packages once: \033[1mnpm i -g pptxgenjs playwright-chromium\033[0m\n' >&2
+          exit 1
+        }
+        [ -f slides/public/casts/full.cuts.json ] || {
+          printf '  no cut manifest -- run \033[1mtask deck:split\033[0m first\n' >&2; exit 1
+        }
+        ./scripts/cast-lint.py slides/public/casts/full.cast || exit 1
+
+        # The work directory is rebuilt every run. Filming is the slow part and
+        # it is skipped when the videos are already there and newer than the
+        # recording, so a rebuild after editing talk.md costs seconds.
+        WORK="${WORK:-.pptx-build}"
+        mkdir -p "$WORK"
+        printf '\n  \033[1mstructure\033[0m\n'
+        ./scripts/pptx/extract.py "$WORK/deck.json"
+        printf '\n  \033[1mpictures\033[0m\n'
+        node scripts/pptx/assets.mjs "$WORK"
+        printf '\n  \033[1mrecordings\033[0m\n'
+        if [ -d "$WORK/video" ] && [ -z "$(find slides/public/casts/full.cast -newer "$WORK/video" 2>/dev/null)" ]; then
+          printf '  already filmed and newer than the recording -- delete %s/video to refilm\n' "$WORK"
+        else
+          rm -rf "$WORK/video" "$WORK/covers"
+          node scripts/pptx/film.mjs "$WORK"
+        fi
+        printf '\n  \033[1mdeck\033[0m\n'
+        node scripts/pptx/build.mjs "$WORK" slides/talk.pptx
+        ./scripts/pptx/timing.py slides/talk.pptx "${PAUSE_CLICKS:-0}"
+        printf '\n  \033[1;32m✓\033[0m slides/talk.pptx -- %s\n\n' \
+          "$(du -h slides/talk.pptx | cut -f1)"
+
   deck:check:
     desc: check that every slide fits the canvas at every click — needs `task deck` running
     silent: true
