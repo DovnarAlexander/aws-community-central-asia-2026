@@ -223,6 +223,31 @@ def add_text(xml, box, runs, align='l', anchor='t', face=None):
     return xml.replace('</p:spTree>', sp + '</p:spTree>', 1)
 
 
+def add_shape(xml, box, prst='rect', fill=SURFACE, line=LINE, text=None,
+              size=SZ_BODY, colour=INK, bold=False, face=None, adj=None):
+    """One shape, and the id it was given, so an animation can find it later."""
+    x, y, w, h = [int(v * EMU) for v in box]
+    i = next_id(xml)
+    av = f'<a:gd name="adj" fmla="val {adj}"/>' if adj else ''
+    body = '<a:p/>'
+    if text:
+        t = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        latin = f'<a:latin typeface="{face}"/>' if face else ''
+        body = (f'<a:p><a:pPr algn="ctr" marL="0" indent="0"><a:buNone/></a:pPr><a:r>'
+                f'<a:rPr lang="en-US" sz="{int(size * 100)}" b="{1 if bold else 0}" dirty="0">'
+                f'<a:solidFill><a:srgbClr val="{colour}"/></a:solidFill>{latin}</a:rPr>'
+                f'<a:t>{t}</a:t></a:r></a:p>')
+    ln = (f'<a:ln w="12700"><a:solidFill><a:srgbClr val="{line}"/></a:solidFill></a:ln>'
+          if line else '<a:ln><a:noFill/></a:ln>')
+    sp = (f'<p:sp><p:nvSpPr><p:cNvPr id="{i}" name="Shape {i}"/><p:cNvSpPr/><p:nvPr/>'
+          f'</p:nvSpPr><p:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{w}" cy="{h}"/></a:xfrm>'
+          f'<a:prstGeom prst="{prst}"><a:avLst>{av}</a:avLst></a:prstGeom>'
+          f'<a:solidFill><a:srgbClr val="{fill}"/></a:solidFill>{ln}</p:spPr>'
+          f'<p:txBody><a:bodyPr anchor="ctr" lIns="45720" rIns="45720"/><a:lstStyle/>{body}'
+          f'</p:txBody></p:sp>')
+    return xml.replace('</p:spTree>', sp + '</p:spTree>', 1), str(i)
+
+
 def add_card(xml, box, fill=SURFACE, line=LINE):
     """A quiet panel to put things on. No edge stripes, no accent bars."""
     x, y, w, h = [int(v * EMU) for v in box]
@@ -466,6 +491,37 @@ def appear(spid, para, ident):
     return step, nxt + 1
 
 
+def appear_shape(spid, ident, fade=True):
+    """Bring a whole shape on, on a click. Fade rather than snap: six things
+    snapping onto a slide one after another reads as a fault, not a build."""
+    inner = (f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
+             f'<p:cTn id="{ident + 3}" dur="400"/><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl>'
+             f'</p:cBhvr></p:animEffect>'
+             f'<p:set><p:cBhvr><p:cTn id="{ident + 4}" dur="1" fill="hold"><p:stCondLst>'
+             f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl>'
+             f'<p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst>'
+             f'</p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
+    step, nxt = _par(inner, ('entr', 'clickEffect'), ident)
+    return step, nxt + 2
+
+
+def appear_group(spids, ident):
+    """Several shapes on one press, so a step of the loop arrives as one thing."""
+    inner = ''
+    n = ident + 3
+    for spid in spids:
+        inner += (f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
+                  f'<p:cTn id="{n}" dur="400"/><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl>'
+                  f'</p:cBhvr></p:animEffect>'
+                  f'<p:set><p:cBhvr><p:cTn id="{n + 1}" dur="1" fill="hold"><p:stCondLst>'
+                  f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}"/>'
+                  f'</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName>'
+                  f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
+        n += 2
+    step, _ = _par(inner, ('entr', 'clickEffect'), ident)
+    return step, n + 1
+
+
 def recolour(spid, para, rgb, ident):
     """Turn one paragraph a colour, which is what highlighting a line of code is."""
     inner = (f'<p:animClr clrSpc="rgb"><p:cBhvr><p:cTn id="{ident + 3}" dur="500" fill="hold"/>'
@@ -616,24 +672,31 @@ TOP, BOT = 1.55, 6.45
 
 
 def _cards(xml, items, y, h, gap=0.28):
-    """A row of equal panels. Label, then the line, then the consequence."""
+    """A row of equal panels. Label, then the line, then the consequence.
+
+    Returns the ids in pairs -- panel and its text -- so each one can be brought
+    on by its own press rather than the whole row landing at once.
+    """
     n = len(items)
     w = (R - L - gap * (n - 1)) / n
+    ids = []
     for i, (label, line, tail, colour) in enumerate(items):
         x = L + i * (w + gap)
-        xml = add_card(xml, (x, y, w, h))
+        xml, card = add_shape(xml, (x, y, w, h), 'roundRect', fill=SURFACE,
+                              line=LINE, adj=4000)
         runs = [(label, SZ_LABEL, colour, True), (None, 0, INK, False),
                 (line, SZ_BODY, INK, False)]
         if tail:
             runs += [(None, 0, INK, False), (tail, SZ_CAPTION, MUTED, False)]
         xml = add_text(xml, (x + 0.3, y + 0.28, w - 0.6, h - 0.5), runs)
-    return xml
+        ids.append((card, str(int(card) + 1)))
+    return xml, ids
 
 
 def d_questions(xml, s, ctx):
     xml = add_text(xml, (L, TOP, R - L, 0.5),
                    [(s['prose'].splitlines()[0], 16, INK, False)])
-    xml = _cards(xml, [
+    xml, ids = _cards(xml, [
         ('startup', 'has it finished booting?',
          'while it runs, the other two are not consulted at all', TEAL),
         ('liveness', 'is the process alive?',
@@ -642,9 +705,18 @@ def d_questions(xml, s, ctx):
          'a wrong answer takes the pod out of the Service', TEAL),
     ], TOP + 0.75, 2.1)
     tail = [l for l in s['prose'].splitlines() if l.startswith('Of everything')]
+    last = None
     if tail:
         xml = add_text(xml, (L, TOP + 3.2, R - L, 1.0), [(tail[0], 15, INK, False)])
-    return xml
+        last = str(next_id(xml) - 1)
+    steps, ident = [], 10
+    for pair in ids:
+        step, ident = appear_group(list(pair), ident)
+        steps.append(step)
+    if last:
+        step, ident = appear_group([last], ident)
+        steps.append(step)
+    return animate(xml, steps, set())
 
 
 def d_arithmetic(xml, s, ctx):
@@ -708,12 +780,20 @@ def d_fix(xml, s, ctx):
     items = [(f"{n} · {head}", body[0] if body else '',
               body[1] if len(body) > 1 else '', TEAL if n != '3' else ORANGE)
              for n, head, body in parts[:3]]
-    xml = _cards(xml, items, TOP, 2.6)
+    xml, ids = _cards(xml, items, TOP, 2.6)
     closing = [l for l in lines if l.startswith('Twelve workers')]
+    last = None
     if closing:
-        xml = add_text(xml, (L, TOP + 3.0, R - L, 0.9),
-                       [(closing[0], 16, INK, True)])
-    return xml
+        xml = add_text(xml, (L, TOP + 3.0, R - L, 0.9), [(closing[0], 16, INK, True)])
+        last = str(next_id(xml) - 1)
+    steps, ident = [], 10
+    for pair in ids:
+        step, ident = appear_group(list(pair), ident)
+        steps.append(step)
+    if last:
+        step, ident = appear_group([last], ident)
+        steps.append(step)
+    return animate(xml, steps, set())
 
 
 def d_checklist(xml, s, ctx):
@@ -746,7 +826,63 @@ def d_checklist(xml, s, ctx):
     return xml
 
 
+def d_loop(xml, s, ctx):
+    """The cascade, as shapes rather than a flat picture.
+
+    It was a PNG, and a picture of a circle cannot show a circle turning. Six
+    boxes and six arrows, one press each, so the room watches the loop close
+    instead of being handed it finished.
+    """
+    NODES = [
+        ('the probe asks the database', TEAL),
+        ('replicas go NotReady', TEAL),
+        ('workers stop consuming SQS', TEAL),
+        ('queue depth grows', TEAL),
+        ('KEDA adds workers', TEAL),
+        ('Karpenter buys nodes', ORANGE),     # the only step with a price tag
+    ]
+    bw, bh = 3.52, 0.95
+    xs = [0.62, 4.93, 9.24]
+    top, bottom = 2.0, 4.72
+    # Top row runs left to right, the bottom row runs back, and the two ends
+    # join up: the same shape the driver prints in the terminal.
+    where = [(xs[0], top), (xs[1], top), (xs[2], top),
+             (xs[2], bottom), (xs[1], bottom), (xs[0], bottom)]
+    arrows = [
+        ('rightArrow', xs[0] + bw + 0.08, top + bh / 2 - 0.16, 0.72, 0.32),
+        ('rightArrow', xs[1] + bw + 0.08, top + bh / 2 - 0.16, 0.72, 0.32),
+        ('downArrow', xs[2] + bw / 2 - 0.16, top + bh + 0.12, 0.32, bottom - top - bh - 0.24),
+        ('leftArrow', xs[1] + bw + 0.08, bottom + bh / 2 - 0.16, 0.72, 0.32),
+        ('leftArrow', xs[0] + bw + 0.08, bottom + bh / 2 - 0.16, 0.72, 0.32),
+        ('upArrow', xs[0] + bw / 2 - 0.16, top + bh + 0.12, 0.32, bottom - top - bh - 0.24),
+    ]
+    node_ids, arrow_ids = [], []
+    for (label, colour), (x, y) in zip(NODES, where):
+        xml, i = add_shape(xml, (x, y, bw, bh), 'roundRect', fill='FFFFFF',
+                           line=colour, text=label, size=13, colour=INK, adj=14000)
+        node_ids.append(i)
+    for prst, x, y, w, h in arrows:
+        xml, i = add_shape(xml, (x, y, w, h), prst, fill=MUTED, line=None)
+        arrow_ids.append(i)
+
+    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    if lines:
+        xml = add_text(xml, (L, BOT - 0.5, R - L, 0.5), [(lines[0], 15, INK, True)])
+
+    # One press per turn: the arrow into a box arrives with the box.
+    steps, ident = [], 10
+    step, ident = appear_group([node_ids[0]], ident)
+    steps.append(step)
+    for k in range(1, 6):
+        step, ident = appear_group([arrow_ids[k - 1], node_ids[k]], ident)
+        steps.append(step)
+    step, ident = appear_group([arrow_ids[5]], ident)     # the loop closes
+    steps.append(step)
+    return animate(xml, steps, set())
+
+
 DESIGN = {
+    'The loop': d_loop,
     'Something is asking your container questions': d_questions,
     'It is arithmetic, not a bug': d_arithmetic,
     'A readiness probe that passes review': d_review,
@@ -823,7 +959,8 @@ def fill(deck, work, kind, s, slide, title_of, number):
         designed = DESIGN[s['title']](xml, s, None)
         xml = designed if designed is not None else xml
         xml = set_furniture(xml, number)
-        xml = add_clicks(xml, s)
+        if '<p:timing>' not in xml:
+            xml = add_clicks(xml, s)
         deck.write(slide, xml)
         if s['notes'].strip():
             add_notes(deck, slide, s['notes'])
