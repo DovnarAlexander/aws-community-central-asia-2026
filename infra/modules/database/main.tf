@@ -57,8 +57,14 @@ variable "max_connections" {
 }
 
 variable "engine_version" {
-  type    = string
-  default = "16"
+  description = <<-EOT
+    Latest available major on RDS. The connection arithmetic act 2 depends on is
+    unchanged from 16: the postgres18 parameter family still defaults
+    rds.rds_reserved_connections to 4 and reserved_connections to 2, so 60 is
+    still 54 in practice.
+  EOT
+  type        = string
+  default     = "18"
 }
 
 variable "snapshot_identifier" {

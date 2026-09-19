@@ -29,8 +29,10 @@ variable "subnet_ids" { type = list(string) }
 variable "db_security_group_id" { type = string }
 
 variable "kubernetes_version" {
+  # The version EKS itself defaults to. Standard support runs to August 2027,
+  # so nothing here goes on extended-support billing mid-rehearsal.
   type    = string
-  default = "1.34"
+  default = "1.36"
 }
 
 variable "system_instance_type" {
@@ -89,9 +91,15 @@ module "eks" {
       instance_types = [var.system_instance_type]
       capacity_type  = "ON_DEMAND"
 
-      # The module defaults to the x86 AMI, which EKS rejects outright for a
-      # Graviton instance type rather than picking the obvious alternative.
-      ami_type = "AL2023_ARM_64_STANDARD"
+      # Bottlerocket, same as the capacity Karpenter buys -- one OS to reason
+      # about across the whole cluster, and nothing here needs a general-purpose
+      # one: this group runs CoreDNS, the Karpenter controller and the KEDA
+      # operator, none of which want a shell.
+      #
+      # The arch has to be stated. The module defaults to the x86 image, which
+      # EKS rejects outright for a Graviton instance type rather than picking
+      # the obvious alternative.
+      ami_type = "BOTTLEROCKET_ARM_64"
 
       min_size     = 1
       max_size     = 2

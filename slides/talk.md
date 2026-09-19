@@ -39,15 +39,11 @@ variant: 2
 Alexander Dovnar · Naviteq · AWS User Group Central Asia 2026
 
 <!--
-WHERE WE ARE
-The promise. Nothing moves on this slide.
-
-SAY
 "Good morning. This talk is about six lines in your manifest that almost everyone copies from the service next door, and about the two of them that can take a healthy service down and put the outage on your AWS bill.
+
 Two incidents, both reproduced live on a real EKS cluster. The pods die because the numbers say they should."
 
-IF THE CLUSTER IS DOWN
-Say so now rather than later and present from the recordings. They are full runs of the same show, cut per step, so losing one step costs that step and nothing else.
+[if the cluster is down, say so now rather than later and present from the recordings -- they are full runs of the same show, cut per step]
 -->
 
 ---
@@ -77,16 +73,14 @@ layout: default
 </div>
 
 <!--
-WHERE WE ARE
-Thirty seconds on who is talking, then straight to the terminal.
+1 "I run engineering at Naviteq."
 
-THE CLICKS
-1. photograph and the mark: "I run engineering at Naviteq."
-2. the role: "And I co-host DevOps Kitchen Talks, seventy-odd episodes of two people arguing about infrastructure."
-3. the credentials: read one, not five. The containers track and the Terragrunt ambassadorship are the two that say why this talk.
-4. the links: "These are all on the QR at the end, so nobody needs to photograph this slide."
+2 "And I co-host DevOps Kitchen Talks -- seventy-odd episodes of two people arguing about infrastructure."
 
-THEN
+3 "AWS Community Builder on the containers track, and a Terragrunt ambassador. Which is more or less why this talk exists."
+
+4 "These are all on the QR at the end, so nobody needs to photograph this slide."
+
 "Both incidents you are about to see happened to somebody I know, and one of them happened to me."
 -->
 
@@ -102,17 +96,41 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-The cast, introduced by the stage itself. Runs {len} and starts on its own; the bar along the bottom is how much is left.
+[{len}, starts on its own. Everything below is on the screen -- read it, do not summarise it]
 
-WHILE IT PLAYS
-- Timur ships the service.
-- Ruslan tunes the numbers.
-- Madina asks what the probe is actually for.
-- Karpenter answers Pending pods by buying machines, and has a credit card.
+"Reaching the cluster. Waking the database. Calling the developer. Calling the DevOps. Hiring an intern."
 
-DO NOT SKIP IT
-A later step called "Madina unhooks the probe" does not land on a room that has never met her. Talk over it instead.
+"THE PROBE THAT KILLED ITSELF. A real cluster, a real database, real failures. Nothing is recorded -- including the parts that go wrong."
+
+"On call.
+
+Timur, backend: 'I wrote the service. It takes ten seconds to start: warms a cache, opens a pool. The probe I copied from a blog post. It is green, so it is correct.'
+
+Ruslan, DevOps: 'Any production problem is a number in a YAML file. The method works. It has never failed me before today.'
+
+Madina, intern: 'I read the documentation.' -- and nobody asks her opinion for a while.
+
+kubelet, the executioner: 'I do not read your code. I read your manifest, and then I pull the trigger.'
+
+Postgres, the database: 'Two vCPU, fifty-four connections you may have, and a great deal of patience.'
+
+KEDA, the pod autoscaler: 'The queue is deep, so I will add workers.' It has no other ideas.
+
+Karpenter, the node autoscaler: 'Pods are Pending, so I will buy machines.' This one has a credit card.
+
+Any resemblance to your team is coincidental. Probably."
+
+[click for the card]
+
+"What this talk is about. Every container you run has something asking it questions. Not a load balancer, not a human: kubelet, every few seconds, forever, using numbers out of your manifest.
+
+Startup: has it finished booting? Liveness: is it alive -- and a wrong answer restarts it. Readiness: can it serve -- and a wrong answer unplugs it.
+
+Of everything that can take a container down -- a crash, an OOM, an eviction, a rollout -- a probe is the only one that does it while the process is working perfectly well."
+
+"Two incidents. Both times the service was killed by a check, not by traffic."
+
+[do not skip it -- "Madina unhooks the probe" later does not land on a room that has never met her]
 -->
 
 ---
@@ -130,19 +148,17 @@ layout: default
 <p class="nq-statement">Of everything that can take a container down (a crash, an OOM, an eviction, a rollout), a probe is the only one that does it <strong>while the process is working perfectly well</strong>.</p>
 
 <!--
-WHERE WE ARE
-The one piece of theory that has to come before the first failure. The diagram draws itself branch by branch.
+1 "Something is asking your container questions, and it is not a load balancer and it is not a human. It is kubelet, the agent on every node, asking every few seconds, forever, using numbers that came out of your manifest."
 
-THE CLICKS
-1. the opening line: "Something is asking your container questions, and it is not a load balancer and not a human. It is kubelet, the agent on every node, asking every few seconds, forever, using numbers that came out of your manifest."
-2. kubelet appears: point at it. The only actor in the talk that never changes its behaviour.
-3. startup: "Has it finished booting? While this one runs, the other two are not consulted at all."
-4. liveness: "Is the process alive? A wrong answer restarts the container, and work in flight dies with it."
-5. readiness: "Can it serve right now? A wrong answer only takes the pod out of the Service. It keeps running and comes back by itself."
-6. the closing line: land this one slowly.
+2 "That one. The only actor in this whole talk that never changes its behaviour."
 
-THE LINE THAT MATTERS
-Of everything that can take a container down, a probe is the only one that does it while the process is working perfectly well.
+3 "Startup: has it finished booting? While this one is running, the other two are not consulted at all."
+
+4 "Liveness: is the process alive? A wrong answer restarts the container, and work in flight dies with it."
+
+5 "Readiness: can it serve right now? A wrong answer only takes the pod out of the Service. It keeps running, and it comes back by itself."
+
+6 [slowly] "Of everything that can take a container down -- a crash, an OOM, an eviction, a rollout -- a probe is the only one that does it while the process is working perfectly well."
 -->
 
 ---
@@ -160,18 +176,23 @@ layout: default
 <p class="nq-note">Three deliberate constraints: <strong>no NAT gateway</strong> (the quiet $32 a month), <strong>spot and small instances</strong> so scaling is visible as node <em>count</em>, and a <strong>non-burstable</strong> RDS class so the failure reproduces on the day instead of running out of CPU credits halfway through.</p>
 
 <!--
-WHERE WE ARE
-The cluster, before anything breaks. Follow a request through it.
+1 "One queue, two autoscalers on two different signals, and one database with max_connections pinned low."
 
-THE CLICKS
-1. the opening line: one queue, two autoscalers on two different signals, one database with max_connections pinned low.
-2. the VPC and the cluster: mention the no-NAT quirk only if somebody asks about cost.
-3. the api: "A request lands here."
-4. the queue: "It goes on SQS."
-5. the worker: "A worker picks it up."
-6. the database, and the long line back from the api: "Both of them reach the same Postgres. It is capped at sixty and RDS keeps six, so the application gets fifty-four. Remember that number."
-7. KEDA and Karpenter: "These two are watching. KEDA reads queue depth, Karpenter buys machines for pods that will not fit. Neither knows why the queue is deep."
-8. the constraints line: say it once: the cluster is deliberately small so the failure is visible.
+2 "That is the VPC, and the cluster inside it."
+
+3 "A request lands here."
+
+4 "It goes on SQS."
+
+5 "A worker picks it up."
+
+6 "And both of them reach the same Postgres. It is capped at sixty, and RDS keeps six for itself, so the application gets fifty-four. Remember that number."
+
+7 "These two are watching. KEDA reads queue depth. Karpenter buys machines for pods that will not fit. Neither of them knows why the queue is deep."
+
+8 "The cluster is deliberately small, so that scaling is visible as a node count on the screen."
+
+[the no-NAT saving only if somebody asks about cost]
 -->
 
 ---
@@ -184,10 +205,6 @@ variant: 2
 ## The probe that kills a healthy pod
 
 <!--
-WHERE WE ARE
-The first of two.
-
-SAY
 "A service that takes ten seconds to start, and a probe copied out of an article. Nobody writes a bug."
 -->
 
@@ -241,25 +258,31 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 </div>
 
 <!--
-WHERE WE ARE
-The mechanism, before the cluster demonstrates it. The manifest arrives a line at a time.
+1 "Every number in this probe is defensible on its own."
 
-THE CLICKS
-1. the opening line
-2. "ten seconds" turns bold: the number the rest of the slide is measured against
-3. the panel
-4. livenessProbe: "This is the whole probe."
-5. the endpoint: "It asks /healthz over HTTP."
-6. initialDelaySeconds: 2: "Wait two seconds before asking anything."
-7. periodSeconds: 1: "Then ask again every second."
-8. timeoutSeconds: 1: "An answer has one second to arrive."
-9. failureThreshold: 3: "Three misses in a row and the pod dies."
-10. the sum flies in: pause here
-11. the sum turns bold: "Two, plus three misses a second apart, is five seconds of patience. The service needs ten. The pod is killed on the fifth second, every single time, and there is no bug anywhere."
-12. the last line
+2 "The service warms up for ten seconds. That is the number everything else on this slide is measured against."
 
-THE HALF THAT BITES LATER
-timeoutSeconds. An answer at 1.1 seconds scores the same as no answer at all, and a service gets slow exactly when it is busy.
+3 "Here is what was in the manifest."
+
+4 "This is the whole probe."
+
+5 "It asks /healthz over HTTP."
+
+6 "Wait two seconds before asking anything."
+
+7 "Then ask again every second."
+
+8 "An answer has one second to arrive."
+
+9 "Three misses in a row, and the pod dies."
+
+10 [pause here]
+
+11 "Two, plus three misses a second apart, is five seconds of patience. The service needs ten. The pod is killed on the fifth second, every single time, and there is no bug anywhere."
+
+12 "A startupProbe gives boot its own budget instead, and while it runs the other two are not consulted at all. Raising initialDelaySeconds is the fix everyone reaches for, and it holds until the day the start gets slower.
+
+And timeoutSeconds is the half that bites later. An answer at one point one seconds scores exactly the same as no answer at all -- and a service answers slowly precisely when it is busy."
 -->
 
 ---
@@ -274,19 +297,44 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-The first failure, running. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- The pod is Pending while Karpenter buys a machine.
-- Then it starts.
-- Then kubelet kills it on the fifth second, and again after the backoff.
+Timur: "Service is done. Takes ten seconds to start: warms a cache, opens a pool, reads config. After that it flies."
+Ruslan: "Got a probe?"
+Timur: "Copied one out of an article. It was right there in the example."
+Madina: "What are the numbers?"
+Timur: "initialDelay two, period one, timeout one, three misses. Straight out of the example."
+Madina: "Two, plus three misses a second apart, is..."
+Ruslan: "Ship it."
 
-WATCH
-The RESTARTS column.
+[the manifest, then the apply]
 
-SAY OVER IT
-Nobody touched the code and there is no traffic yet. The arithmetic from two slides ago is what killed it.
+"The pod is Pending. There is nowhere to put it, so Karpenter goes shopping."
+Karpenter: "One pod with nowhere to go. Buying a machine."
+
+Madina: "While we wait. This is what those four numbers Timur read out actually do."
+Ruslan: "Nobody asked."
+
+[her card, up for the whole wait -- read it out]
+"A liveness probe, in four numbers. initialDelaySeconds two: wait this long before the first question. periodSeconds one: then ask again this often. timeoutSeconds one: an answer slower than this is a miss. failureThreshold three: this many misses in a row and the pod dies.
+
+Patience equals initialDelay plus failureThreshold times period. Five seconds. The service needs ten. Nothing else here is a bug.
+
+And kubelet is the one asking. Not a load balancer, not a human, not your code."
+
+[the node arrives, the pod is scheduled]
+
+kubelet: "Two seconds gone. Asking: are you alive?"
+Timur: "It is warming up."
+kubelet: "That answer is not in the manifest."
+
+"The warmup runs ten seconds. The first knock lands at two. Count along. Watch the RESTARTS column."
+
+kubelet: "Three misses in a row. Killing it."
+Timur: "I did not write a single bug!"
+kubelet: "I do not read your code. I read your manifest."
+
+"Nobody touched the code and there is no traffic yet. Arithmetic killed the pod."
 -->
 
 ---
@@ -301,17 +349,69 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-Ruslan's fix, and the day it stops working. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- The number goes up and the CrashLoop stops. Let Ruslan be right for a moment.
-- A feature ships. Boot takes twenty seconds instead of ten.
-- The same manifest kills the pod again.
-- Madina produces the startupProbe: boot gets its own budget and liveness goes back to asking about steady state.
+Ruslan: "CrashLoop? Seen it a hundred times. One line fixes it."
+Timur: "Which one?"
+Ruslan: "The one with the number in it."
 
-THE LINE TO LAND
-initialDelaySeconds is a bet that tomorrow looks like today. Nobody touched the probe.
+[the diff: initialDelaySeconds two becomes twelve]
+
+Ruslan: "Twelve is bigger than ten. We are done here."
+Madina: "What if the start gets slower?"
+Ruslan: "Why would it?"
+
+[the apply]
+
+Madina: "It holds because nothing changed. Not because the number is right."
+Ruslan: "It holds because the number is right."
+
+[the pod comes up green]
+
+Ruslan: "Green. Told you."
+
+[click -- a week passes, Timur ships a feature]
+
+Timur: "Catalogue is preloaded now. /work used to fetch it on every request; it reads it once at boot instead."
+Ruslan: "Requests got faster, then."
+Timur: "Twice as fast. Boot pays for it."
+Timur: "WARMUP_SECONDS, ten to twenty. One more thing to do before the port opens. I did not go near the probe."
+Ruslan: "I did not touch the probe either."
+Madina: "Nobody did. The service grew underneath it."
+kubelet: "Twelve seconds gone. Asking: are you alive?"
+
+"Two numbers are racing. Patience runs out at fifteen seconds. The service is ready at twenty. Same manifest, slower environment."
+
+"initialDelaySeconds is a bet that tomorrow looks like today."
+
+Ruslan: "...You did ask what happens if the start gets slower."
+Madina: "I did. A cold cache. A noisier neighbour. A bigger dataset. One more step at boot. None of those touch the manifest, and every one of them moves the start."
+Madina: "Every other number in a probe reacts to something the process did. This one only counts. It cannot tell a slow start from a dead process, because it is not looking."
+
+Madina: "May I? The documentation has a startupProbe."
+Ruslan: "You read the documentation?"
+Madina: "All of it."
+Ruslan: "..."
+Madina: "Until startup says ready, liveness and readiness are not consulted at all."
+Timur: "So the start gets its own time budget?"
+Madina: "Its own. Two minutes if it wants. It does not affect the liveness period. And liveness goes back to what it was for: the initialDelay comes out, the period goes back to five."
+Madina: "The twenty is not mine, by the way. Timur put it on the cluster a minute ago and the file still said ten, so applying it would have quietly made the service fast again."
+
+[the diff, then the apply]
+
+Madina: "The whole of it is one page. Here."
+
+[her card -- read it out]
+"Three probes, three questions. startup: has it finished booting? liveness: is the process alive -- and the answer restarts the container. readiness: can it serve right now -- and the answer takes it out of the load balancer.
+
+While startup runs, the other two are not consulted at all. Its budget is its own: failureThreshold times period, sixty times two, a hundred and twenty seconds. Once it passes it is never consulted again.
+
+So boot gets a deadline, and liveness goes back to asking about steady state, which is what it was for."
+
+"Same slow start, and RESTARTS is still zero."
+kubelet: "I was told to wait, so I waited. Nobody told me before."
+
+"A slow start is no longer punished with a restart."
 -->
 
 ---
@@ -326,22 +426,47 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-Production config and real traffic. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- Three replicas, and /healthz goes to the database through the same pool as /work.
-- The load starts.
-- Ends on the vote.
+Timur: "Start is fixed. Rolling out the production configuration. Three replicas, and /work doing a real query against RDS."
+Timur: "And I made /healthz honest: HEALTHZ_MODE, local to db. It queries the database now, same as /work. A health check that checks nothing is not a health check."
+Ruslan: "Touching liveness?"
+Timur: "Why? It is green."
+Madina: "It goes to the database through the same pool as /work."
+Ruslan: "Pool of four, the query is trivial. Ship it."
 
-WATCH
-The RESTARTS column, and point at it when it moves.
+[the diff, then the apply]
 
-SAY OVER IT
-The service is healthy. It is busy, and liveness cannot tell busy from dead because it only owns a timer.
+Madina: "Before it ships. These two are not the same question."
+Ruslan: "It is green, Madina."
 
-DO NOT ANSWER THE VOTE
-Let the room argue.
+[her card -- read it out]
+"Restart or remove: two very different answers. Liveness fails, and kubelet kills the container: work in flight dies, the pool is rebuilt, the cache is cold again. Readiness fails, and the pod leaves the EndpointSlice. That is all. It keeps running, and it comes back by itself.
+
+A busy pod is not a dead pod. Slow is a readiness question. Liveness has one job: notice a process that will never recover.
+
+Which makes timeoutSeconds one on liveness a latency alarm wired to a kill switch."
+
+[three replicas Ready, one per node]
+
+[click -- here comes the traffic. "The service is healthy. It is simply busy."]
+
+"The pool is full of real work, and /healthz joins the same queue."
+kubelet: "A second gone, no answer. Again. And again."
+kubelet: "Three misses. Killing it."
+
+"Watch the RESTARTS column -- liveness cannot meet timeoutSeconds one."
+
+[the Unhealthy events]
+
+Timur: "It is alive! It is just busy!"
+kubelet: "I cannot tell busy from dead. I only own a timer."
+
+"Liveness should ask whether the process is alive. It asked how fast it answers."
+
+[the vote] "Who took down a healthy service? Timur, who copied a probe out of an article. Ruslan, who tuned numbers and left liveness alone. Or kubelet, who pulled the trigger."
+
+[do not answer it -- let the room argue]
 -->
 
 ---
@@ -356,19 +481,41 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-The fix, and the same load again. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- Two changes go in.
-- The same load runs again.
-- A before-and-after table closes it, built from two real measurements.
+Madina: "None of the three. It was the wrong question."
+Ruslan: "Meaning?"
+Madina: "Liveness answers one thing: is the process alive. You do not visit a database for that. And do not rush it: generous timeout, more misses allowed."
+Timur: "Then what takes a busy pod out of rotation?"
+Madina: "Readiness. That one is allowed to be twitchy."
+Ruslan: "One probe softer, the other sharper. Fine."
+Madina: "And HEALTHZ_MODE goes back to local -- /healthz stops leaving the process. Whether the database answers is a readiness question, and readiness already asks it."
 
-SAY OVER IT
-The list of what was not touched is longer: not the code, not the traffic, not the hardware, not the database, and not the readiness probe, which stays tight on purpose.
+[the diff, then the apply]
 
-READ THE NUMBERS, DO NOT PARAPHRASE
-p95 is the same. The service did not get faster. It stopped shooting at itself.
+Madina: "Two changes. And the list of what I did not touch, which is longer."
+
+[her card -- read it out]
+"What changed, and what did not. HEALTHZ_MODE local: the check no longer leaves the process. period ten: one question every ten seconds, not five. timeout three: three seconds to answer, not one. failureThreshold five: fifty seconds of patience before a kill.
+
+Not changed: the code, the traffic, the hardware, the database, the readiness probe -- which stays tight on purpose, because taking a busy replica out of rotation is exactly its job.
+
+If you cannot say what a restart would fix, do not restart."
+
+[click -- same load, same service, same hardware]
+
+Madina: "Same three replicas, same three hundred requests a second, same column. This time it should not move at all."
+
+"RESTARTS should stay at zero."
+
+[the before-and-after table -- read the numbers off it, do not paraphrase]
+
+Ruslan: "p95 is the same as it was."
+Madina: "The service did not get faster. It stopped shooting at itself."
+
+"It asked 'are you answering quickly' and punished the answer as if it meant 'are you dead'."
+
+"The load never changed. What took the service down was the health check."
 -->
 
 ---
@@ -386,21 +533,17 @@ layout: default
 <p class="nq-statement">Which makes <code>timeoutSeconds: 1</code> on a liveness probe <strong>a latency alarm wired to a kill switch</strong>. The load never changed. What took the service down was the health check.</p>
 
 <!--
-WHERE WE ARE
-The answer to the vote, and the distinction the whole talk turns on.
+1 "The same failed check, routed through two different probes, costs two completely different things."
 
-THE CLICKS
-1. the opening line: the same failed check, down two different probes, costs two completely different things
-2. a pod that is working fine: "Start from a healthy pod. Nothing is wrong with it."
-3. the liveness branch: "Liveness says no, and kubelet kills the container. Work in flight dies, the pool is rebuilt, the cache is cold. Irreversible. The only thing it is for is noticing a process that will never recover."
-4. the readiness branch: "Readiness says no, and the pod leaves the EndpointSlice. It keeps running, no traffic reaches it, and it comes back by itself. Reversible."
-5. the closing line
+2 "Start from a healthy pod. Nothing is wrong with it."
 
-BEFORE THE LAST CLICK
-Ask the room which one they would rather have.
+3 "Liveness says no, and kubelet kills the container. Work in flight dies, the pool is rebuilt, the cache is cold. That is irreversible. The only thing liveness is for is noticing a process that will never recover on its own."
 
-THE LINE THAT MATTERS
-timeoutSeconds: 1 on a liveness probe is a latency alarm wired to a kill switch.
+4 "Readiness says no, and the pod leaves the EndpointSlice. It keeps running, no traffic reaches it, and it comes back by itself. Reversible."
+
+[before the last click] "So which of the two would you rather have answering that question?"
+
+5 "Which makes timeoutSeconds: 1 on a liveness probe a latency alarm wired to a kill switch. The load never changed. What took the service down was the health check."
 -->
 
 ---
@@ -413,10 +556,6 @@ variant: 3
 ## The probe that buys EC2 instances
 
 <!--
-WHERE WE ARE
-The second incident, a month later.
-
-SAY
 "Timur did everything right this time. He read the documentation and wrote the probe himself. It passes review, and it takes the whole service down."
 -->
 
@@ -468,22 +607,23 @@ rows, err := db.Query(ctx, aggregate)
 </div>
 
 <!--
-WHERE WE ARE
-The probe nobody argues with, and what it costs at scale.
+1 "'Readiness should verify we can actually read our data.' Nobody argues with that sentence in a pull request. That is exactly the problem."
 
-THE CLICKS
-1. the sentence: "Readiness should verify we can actually read our data." Nobody argues with that in a pull request, and that is the problem.
-2. the panel
-3. readinessProbe
-4. the endpoint
-5. periodSeconds: 2: "Every two seconds, every replica."
-6. the table: walk it left to right. "Three replicas: one and a half scans a second, twelve connections. The database does not notice."
-7. fifty-four flies in
-8. it turns bold: "The terminal will say sixty, because that is what max_connections is set to. RDS keeps six for itself, so fifty-four is what the application can have. At twenty-four replicas the probe alone wants ninety-six."
-9. the closing line
+2 "Here it is."
 
-THE LINE THAT MATTERS
-The probe that passed review is now a denial of service against the database it was checking.
+3 "A readiness probe."
+
+4 "It asks /ready, and /ready runs a real query against the database."
+
+5 "Every two seconds. On every replica."
+
+6 "Walk it left to right. Three replicas: one and a half scans a second, twelve connections. The database does not notice."
+
+7 [pause here]
+
+8 "The terminal will say sixty, because that is what max_connections is set to. RDS keeps six for itself, so fifty-four is what the application can have. And at twenty-four replicas the probe alone wants ninety-six."
+
+9 "The probe that passed review is now a denial of service against the database it was checking."
 -->
 
 ---
@@ -499,24 +639,23 @@ layout: default
 <p class="nq-statement">Every turn adds connections to the database that is already the bottleneck, which makes the next turn worse. One step in that circle is <strong>billed by the hour</strong>.</p>
 
 <!--
-WHERE WE ARE
-The centre of the talk. Walk it slowly: each click adds one step and the arrow into it.
+1 "The probe asks the database. Every two seconds, on every replica."
 
-THE CLICKS
-1. the probe asks the database
-2. replicas go NotReady
-3. workers stop consuming SQS
-4. the queue depth grows
-5. KEDA adds workers
-6. Karpenter buys nodes: the only step in the circle with a price tag
-7. the last arrow, and the circle is closed
-8. the closing line
+2 "The database runs out of connections, the probe fails, and the replicas go NotReady."
 
-BEFORE THE LAST CLICK
-Say the thing the slide exists for: nothing in this loop is broken. Every component is doing exactly what it was asked to do.
+3 "A NotReady worker stops consuming SQS."
 
-THE LINE THAT MATTERS
-Every turn adds connections to the database that is already the bottleneck, and one step in that circle is billed by the hour.
+4 "So the queue gets deeper."
+
+5 "KEDA sees a deep queue and adds workers."
+
+6 "The workers do not fit, so Karpenter buys nodes. That is the only step in this circle with a price tag."
+
+7 "And every new worker starts asking the database the same question. The circle is closed."
+
+[before the last click] "Nothing in this loop is broken. Every component is doing exactly what it was asked to do."
+
+8 "Every turn adds connections to the database that is already the bottleneck, which makes the next turn worse. And one step in that circle is billed by the hour."
 -->
 
 ---
@@ -531,15 +670,37 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-The review that let it through. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- Madina says nothing. She said it three times in incident 1 and it went nowhere, so this time she writes it down.
-- The connection count on the right is the baseline: twelve of fifty-four, and Postgres does not wake up.
+"In the first incident a pod killed itself. In this one every replica leaves the load balancer at once, and the autoscalers try to help."
 
-SAY OVER IT
-It passes review, it passes staging, and it passes the first week in production.
+"A month has passed."
+
+Timur: "I did not copy this one. I read the documentation and wrote it myself. Readiness is honest now: every call goes to the database and checks the data is actually readable."
+Timur: "READY_MODE, cached to db_each_call. The probe used to read a cached flag. Now every /ready call does a real query, so a green pod means the database answered."
+Ruslan: "LGTM. It checks a real dependency. That is the right thing to do."
+Madina: "..."
+Ruslan: "Madina?"
+Madina: "Nothing. It passed review."
+
+[the diff, then the apply]
+
+"She said it out loud three times in the first incident. This time she writes it down."
+
+[her card -- read it out]
+"How a readiness failure actually removes a pod. The Service does not route to pods. It routes to an EndpointSlice, and readiness is what puts an address in it or takes it out.
+
+One pod NotReady: its address is removed, and the rest carry the load. Every pod NotReady: the slice is empty and the Service has nowhere to send anything. No error, no traffic, no pods.
+
+So the blast radius of a readiness probe is not one replica. It is every replica that shares whatever the probe is asking about."
+
+"Three replicas, probing every two seconds. One and a half scans per second."
+
+[the connection count]
+
+Postgres: "Twelve connections out of fifty-four. I did not even wake up."
+Ruslan: "All green. Zero incidents."
+Madina: "While there are three replicas, yes."
 -->
 
 ---
@@ -554,22 +715,34 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-Black Friday. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- The queue fills.
-- KEDA scales workers from zero.
-- Karpenter buys machines.
+"Black Friday. The work arrives as a queue, which is what the whole system was built for."
 
-WATCH
-The node counter. It is the number that costs money.
+[the ScaledObject: min zero, max twenty-four, trigger SQS]
 
-SAY OVER IT
-This is the system working exactly as designed. Say so out loud before it stops being true.
+"KEDA watches the queue. Zero workers right now, because there is nothing to do."
 
-IF PRESENTING FROM THE RECORDING
-This cut is short and the scale-up is not in it: the waits were clicked through when the show was recorded. See docs/RUNBOOK.md.
+"Filling the queue: two thousand messages a second going in."
+
+[the card, while KEDA thinks -- read it out]
+"KEDA, and what it is counting. pollingInterval five: it asks SQS how deep the queue is. queueLength twenty: messages per worker it is willing to tolerate. maxReplicaCount twenty-four: the ceiling, and the only thing stopping it.
+
+Desired workers equals queue depth over twenty, capped at twenty-four. minReplicaCount is zero, so this scales up from nothing at all.
+
+Nothing in that formula knows why the queue is deep. A queue that grows because the workers are stuck looks exactly like a queue that grows because there is a lot of work."
+
+KEDA: "Queue is deep. Adding workers."
+Karpenter: "Pods are Pending. Buying machines."
+
+"Queue depth up, workers up, nodes up. Watch the node counter -- that is the number that costs money."
+
+[the node list]
+
+Ruslan: "This is the system working. Look at it scale."
+Madina: "Look at what each new worker does before it processes anything."
+
+[from the recording: this cut is short and the scale-up is not in it -- see docs/RUNBOOK.md]
 -->
 
 ---
@@ -584,21 +757,43 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-The cascade. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- The wall arrives at fifty-four connections.
-- Workers come up and cannot reach the database.
-- They do not acknowledge their messages, so the messages come back.
-- The queue gets deeper, so KEDA adds more workers.
-- Ends on the second vote.
+Madina: "Every replica opens its own pool. Four connections each. And every replica scans two million rows every two seconds, because that is what its readiness probe does."
+Ruslan: "That is a health check."
+Madina: "That is a health check multiplied by the replica count."
 
-WATCH
-The node count, not the queue. A queue going up under load is expected. A node count going up while nothing is processed is the incident.
+"At three replicas it was a third of a core. KEDA is allowed twenty-four."
 
-IF PRESENTING FROM THE RECORDING
-This cut stops after the KEDA card, so the cascade itself is not on screen. Narrate it from the loop slide instead, which is the better picture of it anyway.
+Postgres: "Twenty-four workers at four connections is ninety-six. I have fifty-four. And two vCPU, which are now entirely yours."
+
+[the connection states, then the worker logs: "too many connections"]
+
+Timur: "'too many connections'. The pods are up and they are not Ready."
+Madina: "And a worker that cannot reach the database does not delete its message. The message comes back. The queue gets deeper."
+KEDA: "Queue is deeper. Adding workers."
+Postgres: "I am refusing new connections now. Everyone who has one is holding it."
+Karpenter: "More Pending pods. Buying. Nobody has told me to stop."
+Madina: "That is the loop."
+
+[her card, and it stays up while the numbers move -- read it out]
+"The loop. The probe asks the database, so the replicas go NotReady, so the workers stop consuming. The queue depth grows, so KEDA adds workers, so more nodes are bought -- and every one of them starts asking the database the same question.
+
+Every turn adds connections to the database that is already the bottleneck, which makes the next turn worse. Nothing in the loop is broken. Every component is doing exactly what it was asked.
+
+The only part of it with a price tag is the bottom left."
+
+"Throughput at zero, nodes still climbing. Watch the node count, not the queue -- a queue going up under load is expected; a node count going up while nothing is processed is the incident."
+
+[the EndpointSlice]
+
+Timur: "No endpoints left in the Service. Not one."
+
+"Scaling did not save the service. Scaling is what took it down, and it bought hardware to do it."
+
+[the vote] "What do you do first? Raise maxReplicaCount -- there are clearly not enough workers. Restart the database -- it is slow. Or raise timeoutSeconds on the probe -- let it wait."
+
+[from the recording: this cut stops after the KEDA card, so narrate the cascade off the loop slide instead]
 -->
 
 ---
@@ -613,19 +808,55 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-WHERE WE ARE
-The fix, and the same queue again. {len}, starts on its own.
+[{len}, starts on its own. Read the screen; the lines below are all of it]
 
-WHILE IT PLAYS
-- Every worker that comes up goes Ready and stays Ready.
-- The node count does not move.
-- The queue does not go down: two thousand a second go in and twelve workers cannot outrun that.
+"The answer: none of the three. All three add work to the database, and the database is where everyone is already stuck. The first one also buys more machines."
 
-SAY BEFORE THE NUMBERS MOVE
-Tell the room which two of those three to watch.
+Madina: "Unhook the probe from the database. A background goroutine does SELECT 1 every two seconds with a timeout and stores the result in a flag. The probe reads the flag. That is all."
+Timur: "And if the database really does go down?"
+Madina: "The flag goes stale and the pod honestly leaves the load balancer."
+Ruslan: "All twenty-four at once?"
+Madina: "One at a time, as each flag expires. And the database gets not one extra query."
 
-THE LINE TO CLOSE ON
-Twelve workers, twelve Ready, against twenty-four of which next to none served. One probe changed. Nothing else did.
+"The probe now costs O(1). Twenty-four replicas or two hundred and forty, it is the same."
+
+Madina: "Two more things. The pool is budgeted against the wall: three connections, not four. And KEDA gets a ceiling. An autoscaler without one is a way to turn an incident into an invoice."
+Madina: "READY_MODE, db_each_call back to cached: a goroutine does SELECT 1 on its own schedule and stores the answer, so the cost stops multiplying by replicas. And POOL_MAX, four to three -- the pool is budgeted against max_connections rather than against nothing."
+
+[the diff, then the apply]
+
+[her card -- read it out]
+"The fix, in three parts. One: the probe reads a flag, not the database. A goroutine refreshes the flag on its own schedule, so the cost is O(1) in replicas instead of O(n) -- and a stale flag still takes the pod out.
+
+Two: the pool is budgeted against the wall. replicas times POOL_MAX has to stay under max_connections, with room for everything else.
+
+Three: maxReplicaCount is twelve, not twenty-four. An autoscaler without a ceiling is a way to turn an incident into an invoice.
+
+Only the first one is about probes. The other two decide how far the next mistake gets before something stops it."
+
+[click -- same queue, same database, same cluster]
+
+Madina: "Two things, while this runs. The workers column, and the node count. Every worker that comes up should go Ready and stay Ready. And the node count should not move."
+
+"The queue will not go down: two thousand a second go in, and twelve workers cannot outrun that. Watch the other two numbers."
+
+[the connection count]
+
+Postgres: "Forty-five connections, almost nothing active. Carry on."
+
+[the before-and-after table -- read the numbers off it]
+
+Ruslan: "Same load. Same scale target."
+Madina: "Different probe."
+Madina: "Twelve workers. Twelve Ready. A minute ago there were twenty-four and next to none of them served."
+Timur: "So we are still behind."
+Madina: "Behind, and working. Those twenty-four took messages and handed every one of them back. These twelve finish what they take. One probe changed. Nothing else did."
+
+Karpenter: "Nothing is Pending. I have stopped buying."
+
+"And nothing new was bought. Karpenter gives the idle machines back a couple of minutes later. It was never the problem. It did what it was asked."
+
+"readiness equals can THIS pod serve, not is the shared database alive."
 -->
 
 ---
@@ -681,17 +912,15 @@ An autoscaler without a ceiling is a way to turn an incident into an invoice.
 <p class="nq-statement mt-8" v-click="4">Twelve workers, twelve Ready, against twenty-four of which next to none served. <strong>One probe changed. Nothing else did.</strong></p>
 
 <!--
-WHERE WE ARE
-The answer. One click per part.
+1 "One: unhook the probe. A goroutine refreshes a flag on its own schedule, and the probe just reads the flag. O(1) in replicas instead of O(n) -- and a stale flag still takes the pod out, one at a time as each one expires."
 
-THE CLICKS
-1. unhook the probe: "A goroutine refreshes a flag on its own schedule and the probe reads the flag. O(1) in replicas instead of O(n), and a stale flag still takes the pod out."
-2. budget the pool: "replicas times POOL_MAX stays under max_connections, with room for everything else on that database."
-3. cap the autoscaler: "Twelve, not twenty-four. An autoscaler without a ceiling is a way to turn an incident into an invoice."
-4. the closing line
+2 "Two: budget the pool. replicas times POOL_MAX has to stay under max_connections, with room for everything else that connects to that database."
 
-BEFORE THE LAST CLICK
-Only the first of the three is about probes. The other two decide how far the next mistake gets before something stops it.
+3 "Three: cap the autoscaler. Twelve, not twenty-four. An autoscaler without a ceiling is a way to turn an incident into an invoice."
+
+[before the last click] "Only the first of those three is about probes. The other two decide how far the next mistake gets before something stops it."
+
+4 "Twelve workers, twelve Ready, against twenty-four of which next to none served. One probe changed. Nothing else did."
 -->
 
 ---
@@ -731,16 +960,13 @@ layout: default
 <p class="nq-statement mt-8"><NqHighlight type="solid" color="primary">If you cannot say what a restart would fix, do not restart.</NqHighlight></p>
 
 <!--
-WHERE WE ARE
-What to do on Monday. A slide to photograph, so stop talking and let them.
+1 "Liveness touches nothing else: not the database, not a cache, not a queue, not another process. And the arithmetic is written down -- initialDelay plus failureThreshold times period, against the slowest start you have ever seen, not the usual one."
 
-THE CLICKS
-1. the liveness column: read the first and the last item; the room can read the middle two
-2. the startup column: "Anything slower than a few seconds gets a startupProbe, not a bigger initialDelaySeconds."
-3. the closing line turns bold
+2 "Anything slower than a few seconds gets a startupProbe, not a bigger initialDelaySeconds. And its budget is explicit. Two minutes is not extravagant."
 
-THE LINE THAT MATTERS
-If you cannot say what a restart would fix, do not restart.
+3 "If you cannot say what a restart would fix, do not restart."
+
+[photograph slide -- stop talking and let them]
 -->
 
 ---
@@ -781,16 +1007,11 @@ layout: default
 <p class="nq-statement mt-6">Probes are the only code that can kill a healthy service, and with an autoscaler underneath, bill you for it.</p>
 
 <!--
-WHERE WE ARE
-The second half of the checklist.
+1 "Readiness answers 'can this pod serve'. Never 'is the shared thing healthy'. If it has to know about a dependency, it reads a flag that something else refreshes."
 
-THE CLICKS
-1. the readiness column: the first line is the whole rule: can this pod serve, never is the shared thing healthy
-2. around the probe: the two from incident 2 that are not about probes at all. The retry path is the one people forget.
-3. the closing line turns bold
+2 "And two of these are not about probes at all. Every autoscaler has a ceiling. And a worker that cannot reach its dependency does not ack its message -- check that your retry path cannot feed your scaler. That is the one people forget."
 
-THE LINE THAT MATTERS
-Probes are the only code that can kill a healthy service, and with an autoscaler underneath, bill you for it.
+3 "Probes are the only code that can kill a healthy service, and with an autoscaler underneath, bill you for it."
 -->
 
 ---
@@ -819,12 +1040,7 @@ variant: 2
 </div>
 
 <!--
-WHERE WE ARE
-The end. Stop talking and leave the QR up.
-
-SAY
 "Everything you just saw is in that repository: the checklist, the manifests with these numbers in them, and the driver that ran the show. The failures reproduce: task bootstrap, then ./demo."
 
-THEN
-Leave this slide on screen for questions.
+[leave this slide on screen for questions]
 -->

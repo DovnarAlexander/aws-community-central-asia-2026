@@ -18,9 +18,10 @@
 -- master user is a member of rds_superuser rather than a real superuser, so
 -- superuser_reserved_connections does not apply to it either.
 --
--- PostgreSQL 16's pg_use_reserved_connections is the mechanism that does apply:
--- members get the slots held by reserved_connections. The observer needs its
--- own reserved capacity, or it cannot observe the thing it is there to watch.
+-- pg_use_reserved_connections, a role Postgres has had since 16, is the
+-- mechanism that does apply: members get the slots held by
+-- reserved_connections. The observer needs its own reserved capacity, or it
+-- cannot observe the thing it is there to watch.
 GRANT pg_use_reserved_connections TO postgres;
 
 CREATE TABLE IF NOT EXISTS items (

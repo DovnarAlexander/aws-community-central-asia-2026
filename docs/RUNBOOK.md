@@ -342,12 +342,34 @@ is a recording; the room forgives that instantly and forgives a stall much less.
 ### Recording the fallback
 
 Record once, split automatically. The driver prints a header for every step, so the cuts are
-already in the recording and nobody reads timecodes off a scrubber:
+already in the recording and nobody reads timecodes off a scrubber.
+
+The whole recipe, in order:
 
 ```sh
-task deck:record -- full    # opens the stage; run the show, then quit tmux
-task deck:split             # step boundaries, plus slides ready to paste
+task cost:check                      # 1. is anything already running
+task reset                           # 2. back to the state the show starts from
+task preflight                       # 3. one screen of checks, all green
+GEOM=native task deck:record:probe   # 4. ten seconds: will it play back clean
+GEOM=native task deck:record -- full # 5. the show, start to finish
+task deck:split                      # 6. cuts, and complains if a wait was skipped
+task deck:pptx                       # 7. rebuild the deck around the new cuts
+task deck:build                      # 8. and the HTML one
+task down                            # 9. or cost:check again if it stays up
 ```
+
+Step 4 is not optional and costs nothing: it opens the stage, closes itself, and says whether
+tmux used terminal margins, which is the one fault no amount of editing fixes afterwards.
+
+Step 5 is where the recording is won or lost. Start at step 1.1, press once per beat, and
+**let every wait run its bar out.** There are nine of them and just under eight minutes of
+cluster between them, which is most of what the recording is for: 80, 120 and 90 seconds of
+it belong to incident 2, the three that the last recording lost. `GEOM=native` records at the size of this window, so open it full
+screen first; `GEOM=160x44` pins an explicit size instead.
+
+Step 6 prints the length of every cut. Read them: incident 2's three steps should be minutes,
+not seconds. If it says a countdown never moved, the wait was clicked through and that step is
+not evidence.
 
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.

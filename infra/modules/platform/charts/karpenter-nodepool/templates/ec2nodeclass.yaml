@@ -4,10 +4,20 @@ kind: EC2NodeClass
 metadata:
   name: demo
 spec:
-  # Graviton throughout, matching the system node group and the image the app
-  # is built for.
+  # Bottlerocket, Graviton, and no version of its own: the alias resolves to the
+  # arm64 image published for whatever Kubernetes version the control plane is
+  # running, so a cluster upgrade carries the nodes with it.
+  #
+  # Nothing the demo runs needs a general-purpose OS. Bottlerocket ships a
+  # kubelet, containerd and no shell, which is a smaller image to pull before a
+  # Pending pod can land -- and on this stage the time between Pending and
+  # Running is a number the audience is reading.
+  #
+  # blockDeviceMappings stays unset on purpose: Karpenter already knows the
+  # two-volume layout this family expects (4 GiB root on /dev/xvda, 20 GiB of
+  # container storage on /dev/xvdb) and fills it in.
   amiSelectorTerms:
-    - alias: al2023@latest
+    - alias: bottlerocket@latest
 
   role: {{ .Values.nodeRole | quote }}
 
