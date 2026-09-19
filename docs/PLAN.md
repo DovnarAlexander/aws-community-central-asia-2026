@@ -341,8 +341,9 @@ Two things learned in the process, both now encoded:
 - `scripts/cost-check.sh` priced an unknown instance type at the $0.10/h fallback. Correct
   behaviour for a guard — assume expensive when unsure — but `t4g` rates are now in the table.
 
-**Outstanding:** the SNS email subscription is `PendingConfirmation`. Until that link in
-`dovnar.alexander@gmail.com` is clicked, budget alarms and reaper reports go nowhere.
+**Outstanding:** the SNS email subscription is `PendingConfirmation`. Until the confirmation
+link is clicked in whichever mailbox `infra/local.hcl` names, budget alarms and reaper
+reports go nowhere.
 
 ### 1. Infrastructure — **done, 2026-08-30**
 A Terragrunt stack for VPC (public subnets, no NAT), EKS, the system node group, Karpenter on spot,

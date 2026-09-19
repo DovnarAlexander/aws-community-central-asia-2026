@@ -501,6 +501,10 @@ tasks:
         }
       - python3 scripts/build-diagrams.py
       - NODE_PATH="$(npm root -g)" node scripts/render-diagrams.mjs
+      # The README shows the loop too, and GitHub renders it against whatever
+      # theme the reader picked. The deck's copy has no background on purpose,
+      # so the README gets one that does.
+      - ./scripts/readme-diagram.py slides/public/diagrams/loop.svg docs/img/loop.svg
 
   preflight:
     desc: one screen of checks — run this backstage before going on
