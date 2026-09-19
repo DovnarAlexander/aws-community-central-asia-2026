@@ -109,13 +109,15 @@ def spoken_seconds(notes):
     click the line belongs to. Neither is counted, and neither is a line the
     screen is already speaking.
     """
+    # Brackets first and across the whole note: a stage direction that wraps
+    # onto a second line is still a stage direction, and stripping them line by
+    # line left half of every long one counted as speech.
+    text = re.sub(r'\[[^\]]*\]', ' ', notes, flags=re.S)
     words = 0
-    for line in notes.splitlines():
+    for line in text.splitlines():
         if NAMED.match(line):
             continue
-        bare = re.sub(r'\[[^\]]*\]', ' ', line)
-        bare = re.sub(r'^\s*\d+\s*', ' ', bare)
-        words += len(bare.split())
+        words += len(re.sub(r'^\s*\d+\s*', ' ', line).split())
     return words / WPM * 60
 
 
