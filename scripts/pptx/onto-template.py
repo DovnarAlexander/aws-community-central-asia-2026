@@ -170,6 +170,9 @@ def set_furniture(xml, n):
 # in the layouts, so they are named once here rather than on twenty-three slides.
 EVENT = 'AWS User Group Central Asia 2026, Tashkent'
 
+# A slide the build does not own. See the comment where it is used.
+FROZEN = os.path.join('slides', 'frozen', 'slide2')
+
 
 def clean_layout(deck, layout):
     """Take the template's own leftovers out of a layout we are going to use,
@@ -1279,6 +1282,30 @@ def fill(deck, work, kind, s, slide, title_of, number):
             # of the slide, which is nothing to look at and still a hairline of
             # template showing down one edge of a full-bleed film.
             xml = add_video_emu(xml, rv, rm, rc, (0, 0, slide_cx, slide_cy))
+
+    elif s['title'] == 'Alexander Dovnar' and os.path.isdir(FROZEN):
+        # Laid out by hand in PowerPoint and kept exactly as it was found.
+        # The photograph, the wording and two of the credentials exist only
+        # here -- talk.md has never carried them -- so generating this slide
+        # would quietly delete somebody's afternoon. It has happened once.
+        # To take it back under the build's control, delete slides/frozen/slide2.
+        frozen = open(os.path.join(FROZEN, 'slide.xml'), 'rb').read().decode('utf-8')
+        man = json.load(open(os.path.join(FROZEN, 'manifest.json')))
+        rels = deck.read(deck.rels_of(slide))
+        # Its own r:embed ids have to keep pointing at the same pictures, so the
+        # relationships are written to match the frozen XML rather than the
+        # other way round.
+        entries = []
+        for rid, name in man['media'].items():
+            target = deck.add_media(os.path.join(FROZEN, name), name)
+            entries.append(f'<Relationship Id="{rid}" Type="{IMAGE_REL}" Target="{target}"/>')
+            rels = re.sub(rf'<Relationship Id="{rid}"[^>]*/>', '', rels)
+        rels = rels.replace('</Relationships>', ''.join(entries) + '</Relationships>')
+        deck.write(deck.rels_of(slide), rels)
+        deck.write(slide, set_furniture(frozen, number))
+        if s['notes'].strip():
+            add_notes(deck, slide, s['notes'])
+        return
 
     elif s['title'] == 'Alexander Dovnar':
         xml = set_text(xml, 'title', None, paragraphs([s['title']]))
