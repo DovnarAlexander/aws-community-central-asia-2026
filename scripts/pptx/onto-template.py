@@ -294,6 +294,12 @@ def add_pic(xml, rid, box, name='Picture'):
     return xml.replace('</p:spTree>', pic + '</p:spTree>', 1)
 
 
+def deck_rel(ctx, path, name):
+    """Register a picture on the slide a design is drawing, and hand back its id."""
+    return ctx['deck'].add_rel(ctx['slide'], IMAGE_REL,
+                               ctx['deck'].add_media(path, name))
+
+
 def add_video_emu(xml, rid_video, rid_media, rid_cover, box_emu):
     """Same as add_video, but the rectangle is already in EMU."""
     return add_video(xml, rid_video, rid_media, rid_cover,
@@ -1115,71 +1121,52 @@ def d_loop(xml, s, ctx):
 
 
 def d_verdicts(xml, s, ctx):
-    """The same failed check down two probes, as shapes rather than a picture.
+    """The same failed check down two probes, drawn rather than boxed.
 
-    The slide's own sentence is that one failure costs two different things, so
-    the two branches arrive one press at a time and the room can be asked which
-    one it would rather have before the second appears.
+    This was built out of rounded rectangles and block arrows, which read as a
+    flowchart rather than as something somebody drew. The scene already existed
+    in slides/diagrams as Excalidraw, so it is used: diagram-layers.mjs exports
+    it three times with the other layers made transparent, which keeps every
+    layer the same size on the same origin, and the slide stacks them. One press
+    per branch, and the arrows arrive drawn.
     """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
     xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
     lede = str(next_id(xml) - 1)
 
-    root_w = 4.3
-    xml, root = add_shape(xml, ((SLIDE_W - root_w) / 2, TOP + 0.55, root_w, 0.55),
-                          'roundRect', fill=SURFACE, line=LINE,
-                          text='a pod that is working fine', size=14, adj=20000)
+    work = ctx['work']
+    layers, ar = [], 2726 / 985
+    for k in (1, 2, 3):
+        f = os.path.join(work, 'img', f'verdicts-{k}.png')
+        if not os.path.exists(f):
+            layers = []
+            break
+        layers.append(f)
 
-    branches = [
-        (0.62, ORANGE, 'liveness says no', 'kubelet KILLS the container',
-         'work in flight dies  ·  the pool is rebuilt  ·  the cache is cold again',
-         'irreversible  ·  one job: notice a process that will never recover'),
-        (6.94, TEAL, 'readiness says no', 'the pod leaves the EndpointSlice',
-         'it keeps running  ·  no traffic reaches it  ·  it comes back by itself',
-         'reversible  ·  slow is a readiness question, never a liveness one'),
-    ]
-    groups = []
-    for x, colour, head, verdict, detail, note in branches:
-        bw = 5.77
-        ids = []
-        xml, a = add_shape(xml, (x + bw / 2 - 0.16, TOP + 1.20, 0.32, 0.42),
-                           'downArrow', fill=MUTED, line=None)
-        ids.append(a)
-        xml, h1 = add_shape(xml, (x, TOP + 1.70, bw, 0.52), 'roundRect',
-                            fill='FFFFFF', line=colour, text=head, size=14,
-                            colour=colour, bold=True, adj=20000)
-        ids.append(h1)
-        xml, a2 = add_shape(xml, (x + bw / 2 - 0.16, TOP + 2.30, 0.32, 0.35),
-                            'downArrow', fill=MUTED, line=None)
-        ids.append(a2)
-        xml, h2 = add_shape(xml, (x, TOP + 2.73, bw, 0.55), 'roundRect',
-                            fill='FFFFFF', line=colour, text=verdict, size=14, adj=20000)
-        ids.append(h2)
-        xml = add_text(xml, (x + 0.1, TOP + 3.38, bw - 0.2, 0.8),
-                       [(detail, SZ_CAPTION, MUTED, False), (None, 0, INK, False),
-                        (note, SZ_CAPTION, colour, True)], align='ctr')
-        ids.append(str(next_id(xml) - 1))
-        groups.append(ids)
+    ids = []
+    if layers:
+        top, bottom = 2.22, 5.58
+        h = bottom - top
+        w = h * ar
+        box = ((SLIDE_W - w) / 2, top, w, h)
+        for k, f in enumerate(layers, 1):
+            rid = deck_rel(ctx, f, f'verdicts-{k}.png')
+            xml = add_pic(xml, rid, box, f'Verdicts {k}')
+            ids.append(str(next_id(xml) - 1))
 
     tail = [l for l in lines if l.startswith('Which makes')]
-    last = None
+    closing = None
     if tail:
-        # The branch captions end at 5.73in, so this starts below them rather
-        # than across them.
-        xml = add_text(xml, (L, 5.95, R - L, 0.5), [(tail[0], 15, INK, True)])
-        last = str(next_id(xml) - 1)
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, True)])
+        closing = str(next_id(xml) - 1)
 
     steps, ident = [], 10
     step, ident = appear_group([lede], ident); steps.append(step)
-    step, ident = appear_group([root], ident); steps.append(step)
-    for ids in groups:
-        step, ident = appear_group(ids, ident)
-        steps.append(step)
-    if last:
-        step, ident = appear_group([last], ident)
-        steps.append(step)
+    for i in ids:
+        step, ident = appear_group([i], ident); steps.append(step)
+    if closing:
+        step, ident = appear_group([closing], ident); steps.append(step)
     return animate(xml, steps, set())
-
 
 def d_architecture(xml, s, ctx):
     """What is running, revealed along the path a request takes.
@@ -1361,7 +1348,7 @@ def fill(deck, work, kind, s, slide, title_of, number):
         xml = set_text(xml, 'title', None, paragraphs([s['title']]))
         xml = drop(xml, 'body', '2')
         xml = drop(xml, 'body', '10')
-        designed = DESIGN[s['title']](xml, s, None)
+        designed = DESIGN[s['title']](xml, s, {'deck': deck, 'slide': slide, 'work': work})
         xml = designed if designed is not None else xml
         xml = set_furniture(xml, number)
         if '<p:timing>' not in xml:

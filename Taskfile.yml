@@ -449,6 +449,10 @@ tasks:
         ./scripts/pptx/extract.py "$WORK/deck.json"
         printf '\n  \033[1mpictures\033[0m\n'
         node scripts/pptx/assets.mjs "$WORK"
+        # The verdicts diagram is revealed a branch at a time, so it ships as
+        # three transparent layers cut from the one Excalidraw scene.
+        node scripts/pptx/diagram-layers.mjs slides/diagrams/verdicts.excalidraw.json \
+          "$WORK/img" verdicts '[[0,1],[10,2,3,12,6,7,14],[11,4,5,13,8,9,15]]' 
         printf '\n  \033[1mrecordings\033[0m\n'
         if [ -d "$WORK/video" ] && [ -z "$(find slides/public/casts/full.cast -newer "$WORK/video" 2>/dev/null)" ]; then
           printf '  already filmed and newer than the recording -- delete %s/video to refilm\n' "$WORK"
