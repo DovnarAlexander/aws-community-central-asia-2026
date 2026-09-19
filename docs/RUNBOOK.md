@@ -352,10 +352,20 @@ task deck:split             # step boundaries, plus slides ready to paste
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.
 
-**Let the waits run out, and do not press ahead on the prompt before one.** A clicker press
-that arrives while the driver is busy waits in the terminal buffer, and the next thing to
-read it is the wait itself, which takes it as "move on". The panel still draws, so nothing
-looks wrong: the countdown simply never moves. The committed recording lost all three of
+**Let the waits run out, and do not press ahead on the prompt before one.** A wait now has a
+bar that drains under the counters, with the seconds remaining in front of it:
+
+```
+  queue 1240 . workers 3 . nodes 4 ~$0.62/h
+   74s  ███████████████████░░░░░░░░░░░░░  let it run . [->] skips
+```
+
+While that is on screen the show is waiting on the cluster on purpose, and pressing the
+clicker cuts it short. That is deliberate once the room has clearly got the point, and it is
+why the hint says so. A clicker press that arrives *before* the wait opens is the problem:
+it sits in the terminal buffer, and the next thing to read it is the wait itself, which
+takes it as "move on". The panel still draws, so nothing looks wrong: the countdown simply
+never moves. The committed recording lost all three of
 incident 2's waits that way -- 80, 120 and 90 seconds of cluster, gone -- which is why
 incident 1 runs six minutes and incident 2 runs eighty seconds without ever reaching the
 cascade. `lib/demo.sh` drains the buffer before every wait now, so a new recording does not

@@ -57,7 +57,11 @@ INTRO = re.compile(r"\n {2}0 \. ")
 # wait eats them instantly and breaks. lib/demo.sh drains the buffer now, but a
 # recording made before that, or one clicked through on purpose, still looks
 # complete while carrying none of the evidence.
-COUNTDOWN = re.compile(r"\. (\d+)s \. \[->\] click to move on")
+# Two shapes, because a recording made before the bar existed is still worth
+# checking: the countdown used to be four dim characters at the end of the
+# counters, and is now a number in front of a bar that drains.
+COUNTDOWN = re.compile(r"\. (\d+)s \. \[->\] click to move on"
+                       r"|\n\s+(\d+)s\s+[\u2588\u2591]")
 
 # The dead-air cap the deck plays with. Both the cut times and the player have
 # to use the same number or the cuts point at the wrong minute -- see read_cast
@@ -233,7 +237,7 @@ def main():
     # the evidence: a fast-forwarded recording looks fine until you notice which
     # steps are seconds long.
     printed = strip_ansi_with_map("".join(d for _, kind, d in events if kind == "o"))[0]
-    seen = [int(m.group(1)) for m in COUNTDOWN.finditer(printed)]
+    seen = [int(m.group(1) or m.group(2)) for m in COUNTDOWN.finditer(printed)]
     # Each wait counts down to nothing. One that never gets below most of what
     # it started with was cut short, and the run of frames at a single number is
     # how a frozen countdown looks from here.

@@ -374,6 +374,43 @@ _redraw() {
   _redraw_lines=$(printf '%s\n' "$text" | wc -l | tr -d ' ')
 }
 
+# _hold: the line that says the show is waiting on purpose.
+#
+# The countdown used to be four dim characters at the end of the counters
+# ("... ~$0.42/h . 80s . [->] click to move on"), which reads as a caption
+# rather than as a clock. A presenter who cannot see that the wait is
+# deliberate and finite presses the clicker, and the wait -- which exists to
+# put KEDA and Karpenter on screen doing the thing -- ends before anything
+# happened. Seven waits went that way in the recording that shipped.
+#
+# So it gets a bar that drains, its own line, and the number first.
+_hold() { # _hold LEFT TOTAL
+  local left="$1" total="$2" w bar fill i done_ rest full empty tail
+  w=$(_pane_width)
+  # The hint is the first thing to go on a narrow pane: a bar that wrapped
+  # would put half of itself on the row _redraw is about to overwrite.
+  tail='let it run . [->] skips'
+  bar=$((w - 34))
+  if [ "$w" -lt 60 ]; then tail='[->] skips'; bar=$((w - 21)); fi
+  [ "$bar" -gt 52 ] && bar=52
+  [ "$bar" -lt 8 ] && bar=8
+  [ "$total" -gt 0 ] || total=1
+  fill=$(( (total - left) * bar / total ))
+  [ "$fill" -gt "$bar" ] && fill="$bar"
+  [ "$fill" -lt 0 ] && fill=0
+  # Built from octal escapes rather than written as characters. The bash that
+  # ships with macOS is 3.2 and loses bytes out of a multibyte literal it is
+  # asked to append in a loop, which turned the bar into mojibake; printf hands
+  # back the three bytes intact whatever the shell thinks a character is.
+  full=$(printf '\342\226\210'); empty=$(printf '\342\226\221')
+  done_=''; rest=''
+  i=0; while [ $i -lt "$fill" ]; do done_="$done_$full"; i=$((i + 1)); done
+  i=$fill; while [ $i -lt "$bar" ]; do rest="$rest$empty"; i=$((i + 1)); done
+  printf '  %s%3ss%s  %s%s%s%s%s%s  %s%s%s\n' \
+    "$C_B" "$left" "$C_OFF" "$C_WARN" "$done_" "$C_OFF" \
+    "$C_DIM" "$rest" "$C_OFF" "$C_DIM" "$tail" "$C_OFF"
+}
+
 # _drain: throw away keystrokes that are already queued.
 #
 # A clicker press that arrives while the driver is busy sits in the terminal
@@ -404,7 +441,8 @@ watch_pods() { # watch_pods SECONDS [CAPTION] [SELECTOR]
     local left=$((secs - (SECONDS - start)))
     local body
     body="  ${C_DIM}${cap}${C_OFF}
-  ${C_DIM}ready ${C_OFF}${C_B}$(ready_count "$sel")${C_OFF}${C_DIM} . restarts ${C_OFF}${C_B}$(restarts_total "$sel")${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} . ${left}s . [->] click to move on${C_OFF}
+  ${C_DIM}ready ${C_OFF}${C_B}$(ready_count "$sel")${C_OFF}${C_DIM} . restarts ${C_OFF}${C_B}$(restarts_total "$sel")${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}
+$(_hold "$left" "$secs")
 $(pods_table "$sel")"
     _redraw "$body"
     # Cut the wait short -- but only when a person is actually at the keyboard.
@@ -433,7 +471,8 @@ watch_scale() { # watch_scale SECONDS [CAPTION]
     local left=$((secs - (SECONDS - start)))
     local body
     body="  ${C_DIM}${cap}${C_OFF}
-  ${C_DIM}queue ${C_OFF}${C_B}$(queue_depth)${C_OFF}${C_DIM} . workers ${C_OFF}${C_B}$(ready_count 'app=worker')${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} ~\$$(node_burn)/h . ${left}s . [->] click to move on${C_OFF}
+  ${C_DIM}queue ${C_OFF}${C_B}$(queue_depth)${C_OFF}${C_DIM} . workers ${C_OFF}${C_B}$(ready_count 'app=worker')${C_OFF}${C_DIM} . nodes ${C_OFF}${C_B}$(node_count)${C_OFF}${C_DIM} ~\$$(node_burn)/h${C_OFF}
+$(_hold "$left" "$secs")
 $(pods_table 'app=worker')"
     _redraw "$body"
     if [ -t 0 ]; then
