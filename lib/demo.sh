@@ -423,8 +423,19 @@ _hold() { # _hold LEFT TOTAL
 # correct.
 _drain() {
   [ -t 0 ] || return 0
-  local junk
-  while IFS= read -rsn1 -t 0.01 junk; do :; done
+  local saved junk
+  # Not `read -t 0.01`: the bash macOS ships is 3.2 and takes whole seconds
+  # only, so a fractional timeout is a hard error and every wait printed one.
+  # A whole second would work and cost a second of the show at each of the nine
+  # waits, so the terminal driver does it instead. With canonical mode off and
+  # min 0 time 0 a read returns whatever is already queued and then returns
+  # nothing, which bash reads as end of input -- one call, no waiting. `read`
+  # is used without -n here on purpose: -n makes bash set VMIN=1 itself, which
+  # would undo the very setting this depends on.
+  saved=$(stty -g 2>/dev/null) || return 0
+  stty -icanon -echo min 0 time 0 2>/dev/null || return 0
+  IFS= read -r junk 2>/dev/null
+  stty "$saved" 2>/dev/null
   return 0
 }
 
