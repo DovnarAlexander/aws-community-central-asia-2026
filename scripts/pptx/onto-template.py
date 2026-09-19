@@ -659,15 +659,30 @@ def animate(xml, steps, builds=()):
     """
     if not steps:
         return xml
-    filled = {i for i in re.findall(r'<p:cNvPr id="(\d+)"', xml)
-              if re.search(rf'<p:cNvPr id="{i}"[^>]*>.*?<a:solidFill>', xml, re.S)}
+    # Which shapes carry a fill of their own. Searching the whole document for
+    # a solidFill after an id matches the next one anywhere below it, which put
+    # animBg on every text box on the slide.
+    filled = set()
+    for sp in re.findall(r'<p:sp>.*?</p:sp>', xml, re.S):
+        m = re.search(r'<p:cNvPr id="(\d+)"', sp)
+        spPr = re.search(r'<p:spPr>.*?</p:spPr>', sp, re.S)
+        if m and spPr and '<a:solidFill>' in spPr.group(0):
+            filled.add(m.group(1))
+
+    # Build type comes from the entrance and from nothing else. An emphasis
+    # targets a paragraph because that is the only way to emphasise one, and
+    # reading that as "builds by paragraph" put build="p" on a shape that flies
+    # in whole -- which PowerPoint resolves by drawing it with the slide.
     seen, order = {}, []
     for step in steps:
-        by_para = '<p:pRg' in step or '<p:charRg' in step
+        entrance = 'presetClass="entr"' in step
+        by_para = entrance and ('<p:pRg' in step or '<p:charRg' in step)
         for i in re.findall(r'spid="(\d+)"', step):
             if i not in seen:
                 order.append(i)
-            seen[i] = seen.get(i, False) or by_para
+                seen[i] = by_para
+            elif entrance:
+                seen[i] = seen[i] or by_para
     bld = ''
     for i in order:
         attrs = ' build="p"' if seen[i] else ''
