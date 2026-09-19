@@ -58,7 +58,7 @@ b_2_1() {
   say "Three replicas, probing every two seconds. One and a half scans per second."
   run "kubectl exec -n demo deploy/dbshell -- sh -c \"psql \\\"\\\$DSN\\\" -c \\\"SELECT count(*) AS conns, count(*) FILTER (WHERE state='active') AS active, current_setting('max_connections') AS max FROM pg_stat_activity WHERE datname=current_database()\\\"\""
 
-  pg "Twelve connections out of fifty-seven. I did not even wake up."
+  pg "Twelve connections out of fifty-four. I did not even wake up."
   ruslan "All green. Zero incidents."
   madina "While there are three replicas, yes."
 }
@@ -113,7 +113,7 @@ b_2_3() {
   madina "That is a health check multiplied by the replica count."
   say ""
   say "At three replicas it was a third of a core. KEDA is allowed twenty-four."
-  pg "Twenty-four workers at four connections is ninety-six. I have fifty-seven."
+  pg "Twenty-four workers at four connections is ninety-six. I have fifty-four."
   pg "And two vCPU, which are now entirely yours."
 
   run "kubectl exec -n demo deploy/dbshell -- sh -c \"psql \\\"\\\$DSN\\\" -c \\\"SELECT state, count(*), max(now()-query_start)::interval(0) AS longest FROM pg_stat_activity WHERE datname=current_database() GROUP BY state ORDER BY 2 DESC\\\"\""

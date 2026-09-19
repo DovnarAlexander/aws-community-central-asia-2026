@@ -892,8 +892,8 @@ def d_review(xml, s, ctx):
     xml, stat_card = add_shape(xml, (L, 3.62, 6.10, 1.62), 'roundRect',
                                fill='FFFFFF', line=LINE, adj=4000)
     xml = add_text(xml, (L + 0.32, 3.84, 5.46, 1.2),
-                   [('57', SZ_STAT, ORANGE, True),
-                    ('max_connections on the database it was checking', SZ_CAPTION, MUTED, False)],
+                   [('54', SZ_STAT, ORANGE, True),
+                    ('usable, of the 60 configured', SZ_CAPTION, MUTED, False)],
                    face=SAFE)
     stat = str(next_id(xml) - 1)
 
@@ -1071,8 +1071,12 @@ def d_scene(xml, s, ctx):
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
     work = ctx['work']
 
+    # A scene whose only sentence is its conclusion gets it at the end. The loop
+    # slide was opening with "every turn adds connections to the database",
+    # which is what the room is supposed to work out while the circle closes.
+    conclusion_only = len(lines) == 1
     lede = None
-    if lines:
+    if lines and not conclusion_only:
         xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
         lede = str(next_id(xml) - 1)
 
@@ -1080,20 +1084,23 @@ def d_scene(xml, s, ctx):
     ids = []
     if all(os.path.exists(f) for f in files):
         w_px, h_px = png_size(files[0])
-        top, bottom = 2.22, 5.58
+        # Without a lede the band it would have occupied is the picture's, which
+        # is most of what a round diagram needs: it is bounded by height, so
+        # every inch back is width too.
+        top, bottom = (Y_LEDE, 5.58) if conclusion_only else (2.22, 5.58)
         h = bottom - top
         w = h * w_px / h_px
         if w > R - L:                      # a wide scene is bounded by width
             w = R - L
             h = w * h_px / w_px
-            top = 2.22 + (3.36 - h) / 2
+            top += (bottom - top - h) / 2
         box = ((SLIDE_W - w) / 2, top, w, h)
         for k, f in enumerate(files, 1):
             rid = deck_rel(ctx, f, f'{name}-{k}.png')
             xml = add_pic(xml, rid, box, f'{name} {k}')
             ids.append(str(next_id(xml) - 1))
 
-    tail = [l for l in lines[1:] if len(l) > 20]
+    tail = lines if conclusion_only else [l for l in lines[1:] if len(l) > 20]
     closing = None
     if tail:
         xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[-1], 16, INK, True)])

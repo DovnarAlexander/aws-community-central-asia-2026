@@ -232,7 +232,7 @@ b_0() {
   _beat_pause
 
   _hero "$C_PG" '(~_~)' 'Postgres' 'the database'
-  _type "$C_SAY" 8 '"Two vCPU, 57 connections you may have,'
+  _type "$C_SAY" 8 '"Two vCPU, 54 connections you may have,'
   _type "$C_SAY" 8 'and a great deal of patience."'
   _beat_pause
 

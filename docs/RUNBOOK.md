@@ -352,6 +352,15 @@ task deck:split             # step boundaries, plus slides ready to paste
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.
 
+**Start the show from the top.** `./demo <step>` fast-forwards by replaying every earlier
+step with `FAST=1`, and that flag is what `watch_pods` and `watch_scale` read to decide
+whether to wait: with it on they sleep five seconds instead of holding the counters on
+screen while KEDA and Karpenter do the thing the step exists to show. The recording in
+`slides/public/casts/` was made that way and it shows: incident 1 runs six minutes, incident
+2 runs eighty seconds and never gets to the cascade. Steps 2.2 and 2.3 apply their manifests,
+print their teaching cards, and stop. A recording that starts at step 1.1 and is driven
+through by hand does not have the problem.
+
 Before recording the show for real, spend ten seconds on:
 
 ```sh

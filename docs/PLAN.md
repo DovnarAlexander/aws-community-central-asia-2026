@@ -406,7 +406,14 @@ That also corrects the budget everywhere: 60 `max_connections` is **54** in prac
 the 57 the manifests claimed.
 
 **Still outstanding:** the three-consecutive-runs rule, and tuning the incident 2 step lengths
-against measured timings rather than estimates.
+against measured timings rather than estimates. The 54 has now reached the deck, the two
+`pg` lines in `steps/incident2.sh` and Postgres's own introduction in `lib/story.sh`, which
+had all kept saying 57.
+
+The committed recording is not usable evidence for incident 2: it was made by
+fast-forwarding, so `FAST=1` was still set and every `watch_scale` slept five seconds
+instead of waiting. Measured from the cast, incident 1 is 6:00 and incident 2 is 1:20, with
+the cascade missing entirely. Re-record from step 1.1 before measuring anything.
 
 ### 4. Driver and stage — **done, 2026-08-30**
 Port `demo`, `lib/demo.sh`, `lib/story.sh` and `steps/`, translated and recast. Restructure
