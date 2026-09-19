@@ -30,7 +30,8 @@ import sys
 import zipfile
 
 EMU = 914400
-SLIDE_W, SLIDE_H = 13.333, 7.5
+SLIDE_W, SLIDE_H = 13.3333, 7.5
+slide_cx, slide_cy = 12192000, 6858000   # replaced from the template
 
 SKILL = os.path.expanduser(
     '~/.claude/plugins/cache/anthropic-agent-skills/document-skills/'
@@ -285,6 +286,12 @@ def add_pic(xml, rid, box, name='Picture'):
     return xml.replace('</p:spTree>', pic + '</p:spTree>', 1)
 
 
+def add_video_emu(xml, rid_video, rid_media, rid_cover, box_emu):
+    """Same as add_video, but the rectangle is already in EMU."""
+    return add_video(xml, rid_video, rid_media, rid_cover,
+                     tuple(v / EMU for v in box_emu))
+
+
 def add_video(xml, rid_video, rid_media, rid_cover, box):
     """The shape PowerPoint recognises as a playable film.
 
@@ -409,6 +416,9 @@ def main():
     with zipfile.ZipFile(template) as z:
         z.extractall(root)
     deck = Deck(root)
+    global slide_cx, slide_cy
+    size = re.search(r'sldSz cx="(\d+)" cy="(\d+)"', deck.read('ppt/presentation.xml'))
+    slide_cx, slide_cy = int(size.group(1)), int(size.group(2))
 
     # Structure first, content second: add_slide.py copies a slide verbatim, so
     # cloning after an edit would clone the edit.
@@ -528,6 +538,74 @@ def appear_group(spids, ident):
                   f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
         n += 2
     step, _ = _par(inner, ('entr', 'clickEffect'), ident)
+    return step, n + 1
+
+
+def bold_reveal(spid, para, ident):
+    """A phrase turning bold one letter at a time.
+
+    Lifted from the edit the author made by hand on the arithmetic slide, which
+    is the right instinct: the number a slide turns on should arrive rather than
+    simply be there. PowerPoint calls it Bold Reveal -- emphasis preset 15,
+    iterating over letters at 25ms, setting style.fontWeight on one paragraph.
+    """
+    inner = (f'<p:set><p:cBhvr override="childStyle"><p:cTn id="{ident + 3}" dur="indefinite"/>'
+             f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl>'
+             f'</p:spTgt></p:tgtEl><p:attrNameLst><p:attrName>style.fontWeight</p:attrName>'
+             f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="bold"/></p:to></p:set>')
+    a, b, c = ident, ident + 1, ident + 2
+    step = (f'<p:par><p:cTn id="{a}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
+            f'</p:stCondLst><p:childTnLst><p:par><p:cTn id="{b}" fill="hold">'
+            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
+            f'<p:par><p:cTn id="{c}" presetID="15" presetClass="emph" presetSubtype="0"'
+            f' grpId="0" nodeType="clickEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst>'
+            f'<p:iterate type="lt"><p:tmAbs val="25"/></p:iterate>'
+            f'<p:childTnLst>{inner}</p:childTnLst></p:cTn></p:par>'
+            f'</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>')
+    return step, ident + 4
+
+
+def appear_para(spid, para, ident):
+    """One paragraph of a shape, on a press. What reveals code a line at a time."""
+    inner = (f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
+             f'<p:cTn id="{ident + 3}" dur="300"/><p:tgtEl><p:spTgt spid="{spid}">'
+             f'<p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl></p:spTgt></p:tgtEl>'
+             f'</p:cBhvr></p:animEffect>'
+             f'<p:set><p:cBhvr><p:cTn id="{ident + 4}" dur="1" fill="hold"><p:stCondLst>'
+             f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}">'
+             f'<p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl></p:spTgt></p:tgtEl>'
+             f'<p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst>'
+             f'</p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
+    step, nxt = _par(inner, ('entr', 'clickEffect'), ident)
+    return step, nxt + 2
+
+
+def fly_in(spids, ident):
+    """Up from the bottom edge, together. The author's choice for the panel that
+    carries the number, and it earns the difference: a thing that arrives from
+    somewhere reads as an answer, a thing that fades in reads as a footnote."""
+    inner = ''
+    n = ident + 3
+    for spid in spids:
+        inner += (f'<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base">'
+                  f'<p:cTn id="{n}" dur="500" fill="hold"/><p:tgtEl><p:spTgt spid="{spid}"/>'
+                  f'</p:tgtEl><p:attrNameLst><p:attrName>ppt_y</p:attrName></p:attrNameLst>'
+                  f'</p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="1+#ppt_h/2"/>'
+                  f'</p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_y"/></p:val>'
+                  f'</p:tav></p:tavLst></p:anim>'
+                  f'<p:set><p:cBhvr><p:cTn id="{n + 1}" dur="1" fill="hold"><p:stCondLst>'
+                  f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}"/>'
+                  f'</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName>'
+                  f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
+        n += 2
+    a, b, c = ident, ident + 1, ident + 2
+    step = (f'<p:par><p:cTn id="{a}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
+            f'</p:stCondLst><p:childTnLst><p:par><p:cTn id="{b}" fill="hold">'
+            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
+            f'<p:par><p:cTn id="{c}" presetID="2" presetClass="entr" presetSubtype="4"'
+            f' fill="hold" grpId="0" nodeType="clickEffect"><p:stCondLst>'
+            f'<p:cond delay="0"/></p:stCondLst><p:childTnLst>{inner}</p:childTnLst>'
+            f'</p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>')
     return step, n + 1
 
 
@@ -720,7 +798,7 @@ def d_questions(xml, s, ctx):
         last = str(next_id(xml) - 1)
     steps, ident = [], 10
     for pair in ids:
-        step, ident = appear_group(list(pair), ident)
+        step, ident = fly_in(list(pair), ident)
         steps.append(step)
     if last:
         step, ident = appear_group([last], ident)
@@ -729,26 +807,60 @@ def d_questions(xml, s, ctx):
 
 
 def d_arithmetic(xml, s, ctx):
+    """The manifest, the number it comes to, and what that costs.
+
+    The lede is three boxes rather than one sentence because the middle one is
+    the warm-up, and a phrase can only be emphasised on its own. The boxes keep
+    the positions the author measured by hand in PowerPoint; estimating them
+    from glyph widths would be a guess about a font this machine cannot render.
+    """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    xml = add_text(xml, (L, TOP, 6.1, 0.6), [(lines[0], 15, INK, False)])
+    ids = []
+    for text, box in [('The service warms up for', (0.43, 1.34, 2.30, 0.31)),
+                      ('10 seconds.', (2.69, 1.34, 1.25, 0.31)),
+                      ('Every number in this probe is defensible on its own.',
+                       (3.91, 1.36, 4.63, 0.31))]:
+        xml = add_text(xml, box, [(text, 15, INK, False)])
+        ids.append(str(next_id(xml) - 1))
+    warmup = ids[1]
+
     code = s['code'][0]['text'].split('\n')
-    xml = add_card(xml, (L, TOP + 0.8, 6.1, 2.5))
-    xml = add_text(xml, (L + 0.28, TOP + 1.0, 5.55, 2.1),
-                   [(c, 11, INK, False) for c in code])
-    # The number the whole slide is about, at the size it deserves.
-    xml = add_card(xml, (7.0, TOP + 0.8, R - 7.0, 2.5), fill='FFFFFF')
-    xml = add_text(xml, (7.3, TOP + 1.0, R - 7.3, 0.95),
+    xml, card = add_shape(xml, (0.39, 2.35, 6.10, 2.5), 'roundRect',
+                          fill=SURFACE, line=LINE, adj=4000)
+    xml = add_text(xml, (0.67, 2.55, 5.55, 2.10), [(c, 11, INK, False) for c in code])
+    code_id = str(next_id(xml) - 1)
+
+    xml, stat_card = add_shape(xml, (7.0, 2.35, 5.94, 2.5), 'roundRect',
+                               fill='FFFFFF', line=LINE, adj=4000)
+    xml = add_text(xml, (7.30, 2.55, 5.64, 0.95),
                    [('2 + 3 x 1 = 5 s', SZ_STAT, ORANGE, True)], face=SAFE)
-    xml = add_text(xml, (7.3, TOP + 2.0, R - 7.3, 1.2),
+    stat = str(next_id(xml) - 1)
+    xml = add_text(xml, (7.30, 3.55, 5.64, 1.20),
                    [('patience runs out at five, the service is ready at ten',
-                     SZ_CAPTION, MUTED, False),
-                    (None, 0, INK, False),
+                     SZ_CAPTION, MUTED, False), (None, 0, INK, False),
                     ('The pod dies every single time, and nothing in the manifest is wrong.',
                      SZ_BODY, INK, True)])
+    stat_note = str(next_id(xml) - 1)
+
     last = [l for l in lines if l.startswith('timeoutSeconds')]
+    closing = None
     if last:
-        xml = add_text(xml, (L, TOP + 3.55, R - L, 0.9), [(last[0], 14, INK, False)])
-    return xml
+        xml = add_text(xml, (0.39, 5.39, 12.55, 0.9), [(last[0], 14, INK, False)])
+        closing = str(next_id(xml) - 1)
+
+    steps, ident = [], 10
+    step, ident = appear_group(ids, ident); steps.append(step)
+    step, ident = bold_reveal(warmup, 0, ident); steps.append(step)
+    # The card and its first line together, then a line a press.
+    step, ident = appear_group([card], ident); steps.append(step)
+    for n in range(len(code)):
+        step, ident = appear_para(code_id, n, ident)
+        steps.append(step)
+    step, ident = fly_in([stat_card, stat, stat_note], ident); steps.append(step)
+    step, ident = bold_reveal(stat, 0, ident); steps.append(step)
+    if closing:
+        step, ident = appear_group([closing], ident); steps.append(step)
+    return animate(xml, steps, set())
 
 
 def d_review(xml, s, ctx):
@@ -756,11 +868,13 @@ def d_review(xml, s, ctx):
     xml = add_text(xml, (L, TOP, 6.1, 2.4),
                    [(lines[0], 15, INK, True), (None, 0, INK, False),
                     (lines[1], SZ_BODY, INK, False)])
-    xml = add_card(xml, (L, TOP + 2.6, 6.1, 1.5), fill='FFFFFF')
+    xml, stat_card = add_shape(xml, (L, TOP + 2.6, 6.1, 1.5), 'roundRect',
+                               fill='FFFFFF', line=LINE, adj=4000)
     xml = add_text(xml, (L + 0.3, TOP + 2.8, 5.5, 1.1),
                    [('57', SZ_STAT, ORANGE, True),
                     ('max_connections on the database it was checking', SZ_CAPTION, MUTED, False)],
                    face=SAFE)
+    stat = str(next_id(xml) - 1)
     rows = s.get('tables', [[]])[0]
     if rows:
         xml = add_card(xml, (7.0, TOP + 0.1, R - 7.0, 3.2), fill='FFFFFF')
@@ -771,9 +885,19 @@ def d_review(xml, s, ctx):
                 xml = add_text(xml, (7.3 + ci * cw, TOP + 0.35 + ri * 0.62, cw, 0.5),
                                [(cell, 11 if head else 15, MUTED if head else INK, head)])
     tail = [l for l in lines if l.startswith('max_connections')]
+    closing = None
     if tail:
         xml = add_text(xml, (L, TOP + 4.35, R - L, 0.8), [(tail[0], 14, INK, False)])
-    return xml
+        closing = str(next_id(xml) - 1)
+
+    # The number the slide runs into arrives rather than sits there, the same
+    # way the arithmetic slide does it.
+    steps, ident = [], 10
+    step, ident = fly_in([stat_card, stat], ident); steps.append(step)
+    step, ident = bold_reveal(stat, 0, ident); steps.append(step)
+    if closing:
+        step, ident = appear_group([closing], ident); steps.append(step)
+    return animate(xml, steps, set())
 
 
 def d_fix(xml, s, ctx):
@@ -797,7 +921,7 @@ def d_fix(xml, s, ctx):
         last = str(next_id(xml) - 1)
     steps, ident = [], 10
     for pair in ids:
-        step, ident = appear_group(list(pair), ident)
+        step, ident = fly_in(list(pair), ident)
         steps.append(step)
     if last:
         step, ident = appear_group([last], ident)
@@ -1073,7 +1197,10 @@ def fill(deck, work, kind, s, slide, title_of, number):
             rc = deck.add_rel(slide, IMAGE_REL, deck.add_media(cover, f'rec-{step}.jpg'))
             # 1920x1294 is the recording's own shape; height first keeps the
             # terminal as large as the slide allows without cropping it.
-            xml = add_video(xml, rv, rm, rc, (0, 0, SLIDE_W, SLIDE_H))
+            # Exact EMU rather than the rounded inches: 13.333 is 305 EMU short
+            # of the slide, which is nothing to look at and still a hairline of
+            # template showing down one edge of a full-bleed film.
+            xml = add_video_emu(xml, rv, rm, rc, (0, 0, slide_cx, slide_cy))
 
     elif s['title'] == 'Alexander Dovnar':
         xml = set_text(xml, 'title', None, paragraphs([s['title']]))
