@@ -201,7 +201,15 @@ MONO = 'Amazon Ember Duospace'
 SAFE = 'Calibri'
 INK, MUTED = '0E2841', '6B7A88'
 TEAL, ORANGE, SURFACE, LINE = '156082', 'E97132', 'F4F7F9', 'DCE4EA'
-SZ_LABEL, SZ_BODY, SZ_CAPTION, SZ_STAT = 13, 14, 10, 40
+SZ_LABEL, SZ_BODY, SZ_CAPTION, SZ_STAT = 15, 16, 11, 40
+
+# One vertical rhythm for every content slide, so the eye lands in the same
+# places twenty-three times instead of hunting. The layout used to stop around
+# four and a half inches and leave the bottom third empty on nearly every slide;
+# these three lines are what fills it.
+Y_LEDE, H_LEDE = 1.68, 0.62
+Y_MAIN, H_MAIN = 2.50, 3.00
+Y_CLOSE, H_CLOSE = 5.72, 0.62
 
 
 def add_text(xml, box, runs, align='l', anchor='t', face=None):
@@ -775,14 +783,17 @@ def _cards(xml, items, y, h, gap=0.28):
                 (line, SZ_BODY, INK, False)]
         if tail:
             runs += [(None, 0, INK, False), (tail, SZ_CAPTION, MUTED, False)]
-        xml = add_text(xml, (x + 0.3, y + 0.28, w - 0.6, h - 0.5), runs)
+        # Centred in the panel: top-aligned text in a three-inch card leaves the
+        # bottom half of every card empty, which is the shape of slide this pass
+        # exists to stop making.
+        xml = add_text(xml, (x + 0.3, y + 0.28, w - 0.6, h - 0.56), runs, anchor='ctr')
         ids.append((card, str(int(card) + 1)))
     return xml, ids
 
 
 def d_questions(xml, s, ctx):
-    xml = add_text(xml, (L, TOP, R - L, 0.5),
-                   [(s['prose'].splitlines()[0], 16, INK, False)])
+    xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE),
+                   [(s['prose'].splitlines()[0], 17, INK, False)])
     xml, ids = _cards(xml, [
         ('startup', 'has it finished booting?',
          'while it runs, the other two are not consulted at all', TEAL),
@@ -790,11 +801,11 @@ def d_questions(xml, s, ctx):
          'a wrong answer restarts the container', ORANGE),
         ('readiness', 'can it serve right now?',
          'a wrong answer takes the pod out of the Service', TEAL),
-    ], TOP + 0.75, 2.1)
+    ], Y_MAIN, H_MAIN)
     tail = [l for l in s['prose'].splitlines() if l.startswith('Of everything')]
     last = None
     if tail:
-        xml = add_text(xml, (L, TOP + 3.2, R - L, 1.0), [(tail[0], 15, INK, False)])
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, False)])
         last = str(next_id(xml) - 1)
     steps, ident = [], 10
     for pair in ids:
@@ -825,12 +836,12 @@ def d_arithmetic(xml, s, ctx):
     warmup = ids[1]
 
     code = s['code'][0]['text'].split('\n')
-    xml, card = add_shape(xml, (0.39, 2.35, 6.10, 2.5), 'roundRect',
+    xml, card = add_shape(xml, (0.39, 2.35, 6.10, 2.90), 'roundRect',
                           fill=SURFACE, line=LINE, adj=4000)
-    xml = add_text(xml, (0.67, 2.55, 5.55, 2.10), [(c, 11, INK, False) for c in code])
+    xml = add_text(xml, (0.67, 2.58, 5.55, 2.50), [(c, 11, INK, False) for c in code])
     code_id = str(next_id(xml) - 1)
 
-    xml, stat_card = add_shape(xml, (7.0, 2.35, 5.94, 2.5), 'roundRect',
+    xml, stat_card = add_shape(xml, (7.0, 2.35, 5.94, 2.90), 'roundRect',
                                fill='FFFFFF', line=LINE, adj=4000)
     xml = add_text(xml, (7.30, 2.55, 5.64, 0.95),
                    [('2 + 3 x 1 = 5 s', SZ_STAT, ORANGE, True)], face=SAFE)
@@ -845,7 +856,7 @@ def d_arithmetic(xml, s, ctx):
     last = [l for l in lines if l.startswith('timeoutSeconds')]
     closing = None
     if last:
-        xml = add_text(xml, (0.39, 5.39, 12.55, 0.9), [(last[0], 14, INK, False)])
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(last[0], 14, INK, False)])
         closing = str(next_id(xml) - 1)
 
     steps, ident = [], 10
@@ -864,35 +875,63 @@ def d_arithmetic(xml, s, ctx):
 
 
 def d_review(xml, s, ctx):
+    """The sentence nobody argues with, the manifest that says it, and the bill.
+
+    The probe itself was missing from this slide: the yaml was extracted and
+    then never placed, so the room was asked to take the cost of a probe it had
+    not been shown.
+    """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    xml = add_text(xml, (L, TOP, 6.1, 2.4),
-                   [(lines[0], 15, INK, True), (None, 0, INK, False),
+    xml = add_text(xml, (L, Y_LEDE, 6.10, 1.75),
+                   [(lines[0], 17, INK, True), (None, 0, INK, False),
                     (lines[1], SZ_BODY, INK, False)])
-    xml, stat_card = add_shape(xml, (L, TOP + 2.6, 6.1, 1.5), 'roundRect',
+    lede = str(next_id(xml) - 1)
+
+    xml, stat_card = add_shape(xml, (L, 3.62, 6.10, 1.62), 'roundRect',
                                fill='FFFFFF', line=LINE, adj=4000)
-    xml = add_text(xml, (L + 0.3, TOP + 2.8, 5.5, 1.1),
+    xml = add_text(xml, (L + 0.32, 3.84, 5.46, 1.2),
                    [('57', SZ_STAT, ORANGE, True),
                     ('max_connections on the database it was checking', SZ_CAPTION, MUTED, False)],
                    face=SAFE)
     stat = str(next_id(xml) - 1)
+
+    code_id = None
+    if s['code']:
+        xml, code_card = add_shape(xml, (7.0, Y_LEDE, 5.94, 1.32), 'roundRect',
+                                   fill=SURFACE, line=LINE, adj=6000)
+        code = s['code'][0]['text'].split('\n')
+        xml = add_text(xml, (7.28, Y_LEDE + 0.2, 5.4, 1.0),
+                       [(c, 12, INK, False) for c in code])
+        code_id = str(next_id(xml) - 1)
+
     rows = s.get('tables', [[]])[0]
+    table = []
     if rows:
-        xml = add_card(xml, (7.0, TOP + 0.1, R - 7.0, 3.2), fill='FFFFFF')
-        cw = (R - 7.0 - 0.6) / len(rows[0])
+        xml, tbl_card = add_shape(xml, (7.0, 3.20, 5.94, 2.04), 'roundRect',
+                                  fill='FFFFFF', line=LINE, adj=4000)
+        table.append(tbl_card)
+        cw = (5.94 - 0.6) / len(rows[0])
         for ri, row in enumerate(rows):
             for ci, cell in enumerate(row):
                 head = ri == 0
-                xml = add_text(xml, (7.3 + ci * cw, TOP + 0.35 + ri * 0.62, cw, 0.5),
-                               [(cell, 11 if head else 15, MUTED if head else INK, head)])
+                xml = add_text(xml, (7.3 + ci * cw, 3.42 + ri * 0.42, cw, 0.4),
+                               [(cell, 11 if head else 16, MUTED if head else INK, head)])
+                table.append(str(next_id(xml) - 1))
+
     tail = [l for l in lines if l.startswith('max_connections')]
     closing = None
     if tail:
-        xml = add_text(xml, (L, TOP + 4.35, R - L, 0.8), [(tail[0], 14, INK, False)])
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, False)])
         closing = str(next_id(xml) - 1)
 
-    # The number the slide runs into arrives rather than sits there, the same
-    # way the arithmetic slide does it.
     steps, ident = [], 10
+    step, ident = appear_group([lede], ident); steps.append(step)
+    if code_id:
+        step, ident = appear_group([code_card], ident); steps.append(step)
+        for n in range(len(s['code'][0]['text'].split('\n'))):
+            step, ident = appear_para(code_id, n, ident); steps.append(step)
+    if table:
+        step, ident = appear_group(table, ident); steps.append(step)
     step, ident = fly_in([stat_card, stat], ident); steps.append(step)
     step, ident = bold_reveal(stat, 0, ident); steps.append(step)
     if closing:
@@ -913,11 +952,11 @@ def d_fix(xml, s, ctx):
     items = [(f"{n} · {head}", body[0] if body else '',
               body[1] if len(body) > 1 else '', TEAL if n != '3' else ORANGE)
              for n, head, body in parts[:3]]
-    xml, ids = _cards(xml, items, TOP, 2.6)
+    xml, ids = _cards(xml, items, Y_MAIN, H_MAIN)
     closing = [l for l in lines if l.startswith('Twelve workers')]
     last = None
     if closing:
-        xml = add_text(xml, (L, TOP + 3.0, R - L, 0.9), [(closing[0], 16, INK, True)])
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(closing[0], 17, INK, True)])
         last = str(next_id(xml) - 1)
     steps, ident = [], 10
     for pair in ids:
@@ -942,21 +981,35 @@ def d_checklist(xml, s, ctx):
             cur[1].append(l)
     if len(groups) < 2:
         return None
-    w = (R - L - 0.5) / 2
+    w = (R - L - 0.6) / 2
+    ids = []
     for i, (head, items) in enumerate(groups[:2]):
-        x = L + i * (w + 0.5)
-        xml = add_text(xml, (x, TOP, w, 0.4), [(head, SZ_LABEL, TEAL, True)])
+        x = L + i * (w + 0.6)
+        xml = add_text(xml, (x, Y_LEDE, w, 0.45), [(head, 17, TEAL, True)])
+        head_id = str(next_id(xml) - 1)
         runs = []
         for it in items:
             runs += [(it, SZ_BODY, INK, False), (None, 0, INK, False)]
-        xml = add_text(xml, (x, TOP + 0.55, w, 4.2), runs)
+        xml = add_text(xml, (x, Y_LEDE + 0.65, w, 3.85), runs)
+        ids.append((head_id, str(next_id(xml) - 1)))
     # Whatever did not land in a column. Without this the closing line printed
     # twice: once at the bottom of the second group and once again underneath it.
     placed = {h for h, _ in groups[:2]} | {i for _, items in groups[:2] for i in items}
     tail = [l for l in lines if l not in placed]
+    closing = None
     if tail:
-        xml = add_text(xml, (L, BOT - 0.55, R - L, 0.5), [(tail[-1], 15, INK, True)])
-    return xml
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[-1], 17, INK, True)])
+        closing = str(next_id(xml) - 1)
+
+    # A column at a time, then the line that ends the slide.
+    steps, ident = [], 10
+    for pair in ids:
+        step, ident = appear_group(list(pair), ident)
+        steps.append(step)
+    if closing:
+        step, ident = bold_reveal(closing, 0, ident)
+        steps.append(step)
+    return animate(xml, steps, set())
 
 
 def d_loop(xml, s, ctx):
@@ -1204,25 +1257,50 @@ def fill(deck, work, kind, s, slide, title_of, number):
 
     elif s['title'] == 'Alexander Dovnar':
         xml = set_text(xml, 'title', None, paragraphs([s['title']]))
+        xml = drop(xml, 'body', '2')
+        xml = drop(xml, 'body', '10')
+        shots = []
         portrait = os.path.join(work, 'img', 'portrait.png')
         if os.path.exists(portrait):
             rid = deck.add_rel(slide, IMAGE_REL, deck.add_media(portrait, 'portrait.png'))
-            xml = add_pic(xml, rid, (0.39, 1.8, 3.1, 3.1), 'Portrait')
-        # The company he says the first line of the slide is about.
+            xml = add_pic(xml, rid, (0.39, 1.68, 3.40, 3.40), 'Portrait')
+            shots.append(str(next_id(xml) - 1))
         mark = os.path.join(work, 'img', 'logo.png')
         if os.path.exists(mark):
             rid = deck.add_rel(slide, IMAGE_REL, deck.add_media(mark, 'naviteq.png'))
-            xml = add_pic(xml, rid, (0.39, 5.15, 1.7, 1.7 * 352 / 960), 'Naviteq')
+            xml = add_pic(xml, rid, (0.39, 5.35, 1.90, 1.90 * 352 / 960), 'Naviteq')
+            shots.append(str(next_id(xml) - 1))
+
         # prose carries the list items as well, so the lead-in and the links are
         # whatever is left once the bullets are taken out of it.
         bullets = set(s['bullets'])
         lead = [l for l in s['prose'].splitlines() if len(l) > 3 and l not in bullets]
-        xml = move(xml, 'body', '2', (3.9, 1.8, 8.95, 4.7))
-        xml = set_text(xml, 'body', '2',
-                       paragraphs(lead[:1], size=18)
-                       + paragraphs(s['bullets'], bullet=True, size=15)
-                       + paragraphs(lead[1:], size=11, color='6B7280'))
-        xml = drop(xml, 'body', '10')
+        col = 4.15
+        xml = add_text(xml, (col, 1.68, 8.70, 1.1), [(lead[0], 20, INK, False)])
+        intro = str(next_id(xml) - 1)
+        runs = []
+        for it in s['bullets']:
+            runs += [(it, 16, INK, False), (None, 0, INK, False)]
+        xml = add_text(xml, (col, 3.00, 8.70, 2.5), runs)
+        creds = str(next_id(xml) - 1)
+        links = None
+        if len(lead) > 1:
+            xml = add_text(xml, (col, 5.55, 8.70, 0.5), [(lead[1], 12, MUTED, False)])
+            links = str(next_id(xml) - 1)
+
+        steps, ident = [], 10
+        if shots:
+            step, ident = appear_group(shots, ident); steps.append(step)
+        step, ident = appear_group([intro], ident); steps.append(step)
+        step, ident = appear_group([creds], ident); steps.append(step)
+        if links:
+            step, ident = appear_group([links], ident); steps.append(step)
+        xml = animate(xml, steps, set())
+        xml = set_furniture(xml, number)
+        deck.write(slide, xml)
+        if s['notes'].strip():
+            add_notes(deck, slide, s['notes'])
+        return
 
     elif s['title'] in DESIGN:
         # Laid out by hand: the slide's own shape rather than a column of prose.
