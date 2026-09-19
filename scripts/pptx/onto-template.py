@@ -502,149 +502,115 @@ def main():
 # the template's font metrics, and it would be wrong the first time somebody
 # edited a word.
 
-def _par(inner, node, ident, delay='indefinite'):
-    """One click step of the main sequence."""
-    a, b, c = ident, ident + 1, ident + 2
+def _click(effects, ident, delay='indefinite'):
+    """One press of the clicker, holding one effect node per shape.
+
+    PowerPoint writes a separate <p:cTn> for every shape it animates: the first
+    marked clickEffect, the rest withEffect, all under one press. Packing
+    several shapes into a single effect node passes the schema and every
+    validator, and PowerPoint then declines to treat it as an entrance -- which
+    is how a formula that flies in still arrived with the slide.
+
+    `effects` is a list of (presetID, presetClass, presetSubtype, body), where
+    body(id) returns the behaviours and numbers its own nodes from `id`.
+    """
+    a, b = ident, ident + 1
+    n = ident + 2
+    nodes = ''
+    for k, (pid, pclass, psub, body) in enumerate(effects):
+        kind = 'clickEffect' if k == 0 else 'withEffect'
+        extra = '<p:iterate type="lt"><p:tmAbs val="25"/></p:iterate>' if pclass == 'emph' else ''
+        nodes += (f'<p:par><p:cTn id="{n}" presetID="{pid}" presetClass="{pclass}"'
+                  f' presetSubtype="{psub}" fill="hold" grpId="0" nodeType="{kind}">'
+                  f'<p:stCondLst><p:cond delay="0"/></p:stCondLst>{extra}'
+                  f'<p:childTnLst>{body(n + 1)}</p:childTnLst></p:cTn></p:par>')
+        n += 8
     return (f'<p:par><p:cTn id="{a}" fill="hold"><p:stCondLst><p:cond delay="{delay}"/>'
             f'</p:stCondLst><p:childTnLst><p:par><p:cTn id="{b}" fill="hold">'
-            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
-            f'<p:par><p:cTn id="{c}" presetID="1" presetClass="{node[0]}" presetSubtype="0"'
-            f' fill="hold" grpId="0" nodeType="{node[1]}"><p:stCondLst><p:cond delay="0"/>'
-            f'</p:stCondLst><p:childTnLst>{inner}</p:childTnLst></p:cTn></p:par>'
-            f'</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>'), ident + 3
+            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>{nodes}'
+            f'</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>'), n
 
 
-def appear(spid, para, ident):
-    """Make one paragraph visible."""
-    inner = (f'<p:set><p:cBhvr><p:cTn id="{ident + 3}" dur="1" fill="hold"/><p:tgtEl>'
-             f'<p:spTgt spid="{spid}"><p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl>'
-             f'</p:spTgt></p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName>'
-             f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
-    step, nxt = _par(inner, ('entr', 'clickEffect'), ident)
-    return step, nxt + 1
+def _visible(spid, i, txel=''):
+    """Turn the shape on. Written before the motion, the order PowerPoint uses."""
+    return (f'<p:set><p:cBhvr additive="base"><p:cTn id="{i}" dur="1" fill="hold">'
+            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl>'
+            f'<p:spTgt spid="{spid}">{txel}</p:spTgt></p:tgtEl><p:attrNameLst>'
+            f'<p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr>'
+            f'<p:to><p:strVal val="visible"/></p:to></p:set>')
 
 
-def appear_shape(spid, ident, fade=True):
-    """Bring a whole shape on, on a click. Fade rather than snap: six things
-    snapping onto a slide one after another reads as a fault, not a build."""
-    inner = (f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
-             f'<p:cTn id="{ident + 3}" dur="400"/><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl>'
-             f'</p:cBhvr></p:animEffect>'
-             f'<p:set><p:cBhvr><p:cTn id="{ident + 4}" dur="1" fill="hold"><p:stCondLst>'
-             f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl>'
-             f'<p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst>'
-             f'</p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
-    step, nxt = _par(inner, ('entr', 'clickEffect'), ident)
-    return step, nxt + 2
+def _fade(spid, txel=''):
+    def body(i):
+        return (_visible(spid, i, txel) +
+                f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
+                f'<p:cTn id="{i + 1}" dur="400"/><p:tgtEl><p:spTgt spid="{spid}">{txel}</p:spTgt>'
+                f'</p:tgtEl></p:cBhvr></p:animEffect>')
+    return body
+
+
+def _fly(spid):
+    def body(i):
+        return (_visible(spid, i) +
+                f'<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base">'
+                f'<p:cTn id="{i + 1}" dur="500" fill="hold"/><p:tgtEl><p:spTgt spid="{spid}"/>'
+                f'</p:tgtEl><p:attrNameLst><p:attrName>ppt_y</p:attrName></p:attrNameLst>'
+                f'</p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="1+#ppt_h/2"/></p:val>'
+                f'</p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_y"/></p:val></p:tav>'
+                f'</p:tavLst></p:anim>')
+    return body
 
 
 def appear_group(spids, ident):
-    """Several shapes on one press, so a step of the loop arrives as one thing."""
-    inner = ''
-    n = ident + 3
-    for spid in spids:
-        inner += (f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
-                  f'<p:cTn id="{n}" dur="400"/><p:tgtEl><p:spTgt spid="{spid}"/></p:tgtEl>'
-                  f'</p:cBhvr></p:animEffect>'
-                  f'<p:set><p:cBhvr><p:cTn id="{n + 1}" dur="1" fill="hold"><p:stCondLst>'
-                  f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}"/>'
-                  f'</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName>'
-                  f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
-        n += 2
-    step, _ = _par(inner, ('entr', 'clickEffect'), ident)
-    return step, n + 1
+    """Several shapes on one press, each with its own effect node."""
+    return _click([(10, 'entr', 0, _fade(i)) for i in spids], ident)
 
 
-def bold_reveal_chars(spid, start, end, ident):
-    """Bold reveal over a run of characters inside one paragraph.
-
-    Splitting a sentence into boxes so a phrase could be emphasised left the
-    fragments to be positioned by eye, and they did not line up. A character
-    range keeps the sentence in one box, where it lines itself up.
-    """
-    return _bold(spid, f'<p:charRg st="{start}" end="{end}"/>', ident)
-
-
-def bold_reveal(spid, para, ident):
-    """A phrase turning bold one letter at a time.
-
-    Lifted from the edit the author made by hand on the arithmetic slide, which
-    is the right instinct: the number a slide turns on should arrive rather than
-    simply be there. PowerPoint calls it Bold Reveal -- emphasis preset 15,
-    iterating over letters at 25ms, setting style.fontWeight on one paragraph.
-    """
-    return _bold(spid, f'<p:pRg st="{para}" end="{para}"/>', ident)
-
-
-def _bold(spid, txel, ident):
-    inner = (f'<p:set><p:cBhvr override="childStyle"><p:cTn id="{ident + 3}" dur="indefinite"/>'
-             f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl>{txel}</p:txEl>'
-             f'</p:spTgt></p:tgtEl><p:attrNameLst><p:attrName>style.fontWeight</p:attrName>'
-             f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="bold"/></p:to></p:set>')
-    a, b, c = ident, ident + 1, ident + 2
-    step = (f'<p:par><p:cTn id="{a}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
-            f'</p:stCondLst><p:childTnLst><p:par><p:cTn id="{b}" fill="hold">'
-            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
-            f'<p:par><p:cTn id="{c}" presetID="15" presetClass="emph" presetSubtype="0"'
-            f' grpId="0" nodeType="clickEffect"><p:stCondLst><p:cond delay="0"/></p:stCondLst>'
-            f'<p:iterate type="lt"><p:tmAbs val="25"/></p:iterate>'
-            f'<p:childTnLst>{inner}</p:childTnLst></p:cTn></p:par>'
-            f'</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>')
-    return step, ident + 4
+def appear_shape(spid, ident, fade=True):
+    return appear_group([spid], ident)
 
 
 def appear_para(spid, para, ident):
     """One paragraph of a shape, on a press. What reveals code a line at a time."""
-    inner = (f'<p:animEffect transition="in" filter="fade"><p:cBhvr>'
-             f'<p:cTn id="{ident + 3}" dur="300"/><p:tgtEl><p:spTgt spid="{spid}">'
-             f'<p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl></p:spTgt></p:tgtEl>'
-             f'</p:cBhvr></p:animEffect>'
-             f'<p:set><p:cBhvr><p:cTn id="{ident + 4}" dur="1" fill="hold"><p:stCondLst>'
-             f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}">'
-             f'<p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl></p:spTgt></p:tgtEl>'
-             f'<p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst>'
-             f'</p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
-    step, nxt = _par(inner, ('entr', 'clickEffect'), ident)
-    return step, nxt + 2
+    return _click([(10, 'entr', 0, _fade(spid, f'<p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl>'))],
+                  ident)
 
 
 def fly_in(spids, ident):
-    """Up from the bottom edge, together. The author's choice for the panel that
-    carries the number, and it earns the difference: a thing that arrives from
-    somewhere reads as an answer, a thing that fades in reads as a footnote."""
-    inner = ''
-    n = ident + 3
-    for spid in spids:
-        inner += (f'<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base">'
-                  f'<p:cTn id="{n}" dur="500" fill="hold"/><p:tgtEl><p:spTgt spid="{spid}"/>'
-                  f'</p:tgtEl><p:attrNameLst><p:attrName>ppt_y</p:attrName></p:attrNameLst>'
-                  f'</p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="1+#ppt_h/2"/>'
-                  f'</p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_y"/></p:val>'
-                  f'</p:tav></p:tavLst></p:anim>'
-                  f'<p:set><p:cBhvr><p:cTn id="{n + 1}" dur="1" fill="hold"><p:stCondLst>'
-                  f'<p:cond delay="0"/></p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid="{spid}"/>'
-                  f'</p:tgtEl><p:attrNameLst><p:attrName>style.visibility</p:attrName>'
-                  f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>')
-        n += 2
-    a, b, c = ident, ident + 1, ident + 2
-    step = (f'<p:par><p:cTn id="{a}" fill="hold"><p:stCondLst><p:cond delay="indefinite"/>'
-            f'</p:stCondLst><p:childTnLst><p:par><p:cTn id="{b}" fill="hold">'
-            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>'
-            f'<p:par><p:cTn id="{c}" presetID="2" presetClass="entr" presetSubtype="4"'
-            f' fill="hold" grpId="0" nodeType="clickEffect"><p:stCondLst>'
-            f'<p:cond delay="0"/></p:stCondLst><p:childTnLst>{inner}</p:childTnLst>'
-            f'</p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par>')
-    return step, n + 1
+    """Up from the bottom edge. A thing that arrives from somewhere reads as an
+    answer; a thing that fades in reads as a footnote."""
+    return _click([(2, 'entr', 4, _fly(i)) for i in spids], ident)
+
+
+def _bold(spid, txel, ident):
+    """A phrase turning bold one letter at a time -- PowerPoint's Bold Reveal."""
+    def body(i):
+        return (f'<p:set><p:cBhvr override="childStyle"><p:cTn id="{i}" dur="indefinite"/>'
+                f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl>{txel}</p:txEl></p:spTgt></p:tgtEl>'
+                f'<p:attrNameLst><p:attrName>style.fontWeight</p:attrName></p:attrNameLst>'
+                f'</p:cBhvr><p:to><p:strVal val="bold"/></p:to></p:set>')
+    return _click([(15, 'emph', 0, body)], ident)
+
+
+def bold_reveal(spid, para, ident):
+    return _bold(spid, f'<p:pRg st="{para}" end="{para}"/>', ident)
+
+
+def bold_reveal_chars(spid, start, end, ident):
+    """Bold reveal over a run of characters inside one paragraph, so a phrase can
+    be emphasised without being cut out into a box of its own."""
+    return _bold(spid, f'<p:charRg st="{start}" end="{end}"/>', ident)
 
 
 def recolour(spid, para, rgb, ident):
     """Turn one paragraph a colour, which is what highlighting a line of code is."""
-    inner = (f'<p:animClr clrSpc="rgb"><p:cBhvr><p:cTn id="{ident + 3}" dur="500" fill="hold"/>'
-             f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl>'
-             f'</p:spTgt></p:tgtEl><p:attrNameLst><p:attrName>style.color</p:attrName>'
-             f'</p:attrNameLst></p:cBhvr><p:to><a:srgbClr val="{rgb}"/></p:to></p:animClr>')
-    step, nxt = _par(inner, ('emph', 'clickEffect'), ident)
-    return step, nxt + 1
+    def body(i):
+        return (f'<p:animClr clrSpc="rgb"><p:cBhvr><p:cTn id="{i}" dur="500" fill="hold"/>'
+                f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl><p:pRg st="{para}" end="{para}"/>'
+                f'</p:txEl></p:spTgt></p:tgtEl><p:attrNameLst>'
+                f'<p:attrName>style.color</p:attrName></p:attrNameLst></p:cBhvr>'
+                f'<p:to><a:srgbClr val="{rgb}"/></p:to></p:animClr>')
+    return _click([(15, 'emph', 0, body)], ident)
 
 
 def animate(xml, steps, builds=()):
