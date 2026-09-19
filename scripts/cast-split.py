@@ -50,16 +50,8 @@ ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]|\x1b[=>]")
 # of the stage at all", which are the same empty result and different problems.
 INTRO = re.compile(r"\n {2}0 \. ")
 
-# A wait that was clicked through leaves its countdown frozen: the panel
-# redraws many times inside one second and the number beside "[->] click to
-# move on" never moves. That happens when keystrokes are already queued when
-# the wait opens -- an impatient second press on the previous prompt -- so the
-# wait eats them instantly and breaks. lib/demo.sh drains the buffer now, but a
-# recording made before that, or one clicked through on purpose, still looks
-# complete while carrying none of the evidence.
-# Two shapes, because a recording made before the bar existed is still worth
-# checking: the countdown used to be four dim characters at the end of the
-# counters, and is now a number in front of a bar that drains.
+# The countdown a wait draws, in both shapes it has had: four dim characters
+# at the end of the counters, and a number in front of a bar that drains.
 COUNTDOWN = re.compile(r"\. (\d+)s \. \[->\] click to move on"
                        r"|\n\s+(\d+)s\s+[\u2588\u2591]")
 
@@ -171,6 +163,66 @@ def find_steps(events):
     return found
 
 
+
+def cut_short(path):
+    """Waits that ended before their countdown did, as lines to print.
+
+    A wait is a run of falling numbers. Whether it was clicked through is a
+    question about the clock, not about the frames: the panel redraws once per
+    loop, and a loop that gets quick answers out of kubectl redraws several
+    times inside one second, so counting repeated frames calls an ordinary wait
+    a broken one. What a clicked-through wait actually looks like is a
+    countdown that started at eighty and stopped three seconds later.
+
+    Measured on the recording's own clock rather than the player's: the cap that
+    makes the deck watchable also shortens exactly the gaps being measured here.
+    """
+    raw, chunks = 0.0, []
+    for ln in path.read_text().splitlines()[1:]:
+        if not ln.startswith("["):
+            continue
+        t, kind, data = json.loads(ln)
+        raw += t
+        if kind == "o":
+            chunks.append((raw, data))
+
+    frames, buf = [], ""
+    for t, data in chunks:
+        buf = (buf + ANSI.sub("", data))[-400:]
+        for m in COUNTDOWN.finditer(buf):
+            frames.append((t, int(m.group(1) or m.group(2))))
+        if COUNTDOWN.search(buf):
+            buf = buf[-40:]
+
+    waits, cur = [], None
+    for t, v in frames:
+        if cur and v < cur["last"]:
+            cur["last"], cur["end"] = v, t
+        elif not cur or v != cur["last"]:
+            if cur:
+                waits.append(cur)
+            cur = {"first": v, "last": v, "start": t, "end": t}
+    if cur:
+        waits.append(cur)
+
+    # Anything under ten seconds is a pause between beats, not a wait on the
+    # cluster, and is not what this is looking for.
+    short = [w for w in waits
+             if w["first"] >= 10 and (w["end"] - w["start"]) < w["first"] * 0.6]
+    if not short:
+        return []
+    out = ["", f"  \033[1;31m!\033[0m {len(short)} of the waits ended early:"]
+    for w in short:
+        out.append(f"    {w['first']}s countdown, over in "
+                   f"{round(w['end'] - w['start'])}s")
+    out += ["",
+            "    A wait that is clicked through still draws its panel, so the recording",
+            "    looks complete while the cluster never got far enough to show anything.",
+            "    Let each one run its bar out, and do not press ahead on the prompt",
+            "    before it."]
+    return out
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__.strip(), file=sys.stderr)
@@ -236,26 +288,9 @@ def main():
     # Said after the lengths rather than before them, because the lengths are
     # the evidence: a fast-forwarded recording looks fine until you notice which
     # steps are seconds long.
-    printed = strip_ansi_with_map("".join(d for _, kind, d in events if kind == "o"))[0]
-    seen = [int(m.group(1) or m.group(2)) for m in COUNTDOWN.finditer(printed)]
-    # Each wait counts down to nothing. One that never gets below most of what
-    # it started with was cut short, and the run of frames at a single number is
-    # how a frozen countdown looks from here.
-    runs, cut = [], 0
-    for v in seen:
-        if runs and runs[-1][0] == v:
-            runs[-1][1] += 1
-        else:
-            runs.append([v, 1])
-    for v, n in runs:
-        if n >= 8 and v > 5:
-            cut += 1
-    if cut:
-        print(f"\n  \033[1;31m!\033[0m {cut} of the waits were cut short: their countdowns "
-              "never moved.")
-        print("    A wait that is clicked through still draws its panel, so the recording")
-        print("    looks complete while the cluster never got far enough to show anything.")
-        print("    Let each one run out, and do not press ahead on the prompt before it.")
+    for line in cut_short(src):
+        print(line, file=sys.stderr)
+
 
     # Per-step casts from the days this script wrote files. Nothing references
     # them once the slides ask for steps, and a stale 1.1.cast sitting next to a

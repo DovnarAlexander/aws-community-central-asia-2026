@@ -33,9 +33,21 @@ const cuts = JSON.parse(fs.readFileSync(`${CASTS}/full.cuts.json`, 'utf8'))
 const want = process.argv.slice(3)
 const steps = cuts.cuts.filter(c => !want.length || want.includes(c.step))
 
+// The terminal element asciinema draws is transparent: cells with characters in
+// them get painted, and everything else shows whatever is behind. Behind it was
+// a hardcoded #1e1e1e, so a recording from a light terminal came out with a
+// black band under its last line -- not padding, and nothing downstream could
+// reach it. The recording carries the terminal's own background in its header,
+// which is the only right answer for both the page and the bars beside it.
+const HEAD = JSON.parse(fs.readFileSync(`${CASTS}/full.cast`, 'utf8').split('\n')[0])
+const ROWS = HEAD.term?.rows || HEAD.height || 24
+const BG = (HEAD.term?.theme?.bg || '#1e1e1e')
+const bg = BG.replace('#', '0x')
+
 const PAGE = `<!doctype html><meta charset="utf-8">
 <link rel="stylesheet" href="/vendor/asciinema-player.css">
-<style>html,body{margin:0;background:#1e1e1e;overflow:hidden}#p{width:100vw}
+<style>html,body{margin:0;background:${BG};overflow:hidden}#p{width:100vw}
+ .ap-player,.ap-term{background:${BG} !important}
  /* The paused overlay draws a play button over the terminal; it is not part of
     the recording and must not be part of the film. */
  .ap-overlay-start,.ap-play-button,.ap-control-bar{display:none !important}</style>
@@ -85,16 +97,43 @@ for (const c of steps) {
 
   const page = await browser.newPage({ viewport: { width: WIDTH, height: 1200 } })
   await page.goto(base, { waitUntil: 'networkidle' })
-  await page.waitForTimeout(2500)
-  let H = await page.evaluate(() => Math.round(document.querySelector('.ap-player').getBoundingClientRect().height))
-  H -= H % 2                                     // yuv420p refuses odd dimensions
-  await page.setViewportSize({ width: WIDTH, height: H })
+  // Wait for the recording's own geometry, not for a clock. The cast is
+  // megabytes and the player shows a default 80x24 until it has parsed the
+  // header; measuring during that window gives the box of a terminal half the
+  // size, and every frame afterwards is a 44-row terminal sitting in it with
+  // the remainder left over. A fixed timeout was doing exactly that.
+  // Seeking is what makes the player parse the recording and adopt its size,
+  // so it comes first and the wait is for the result of it.
+  await page.waitForFunction(() => !!window.ap, null, { timeout: 60000 })
+  await page.evaluate(async () => { await window.ap.seek(0); await window.ap.pause() })
+  await page.waitForFunction(
+    n => document.querySelectorAll('.ap-line').length === n, ROWS, { timeout: 60000 })
+  await page.waitForTimeout(500)
+  // Clipped to the terminal, not to the player. .ap-player is taller than the
+  // rows it draws -- the hidden control bar still has its space -- and the page
+  // behind it is dark, so a frame the height of the player carries a black band
+  // under the last line. It is not padding and no amount of recolouring the pad
+  // reaches it: it is page showing through. The terminal's own box is exactly
+  // what was recorded.
+  const box = await page.evaluate(() => {
+    const r = document.querySelector('.ap-term').getBoundingClientRect()
+    return { x: Math.floor(r.x), y: Math.floor(r.y),
+             width: Math.round(r.width), height: Math.round(r.height) }
+  })
+  box.width -= box.width % 2                     // yuv420p refuses odd dimensions
+  box.height -= box.height % 2
+  const H = box.height
+  // The terminal is usually taller than the window it was measured in, and a
+  // row below the fold is a row Chromium has not laid out. Give the window the
+  // terminal's height before asking for any of it.
+  await page.setViewportSize({ width: WIDTH, height: box.y + H })
   await page.waitForTimeout(500)
   const cdp = await page.context().newCDPSession(page)
 
   for (let i = 0; i < times.length; i++) {
     await page.evaluate(async t => { await window.ap.seek(t); await window.ap.pause() }, times[i])
-    const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 })
+    const { data } = await cdp.send('Page.captureScreenshot',
+      { format: 'jpeg', quality: 90, clip: { ...box, scale: 1 }, captureBeyondViewport: true })
     fs.writeFileSync(`${work}/f${String(i).padStart(5, '0')}.jpg`, Buffer.from(data, 'base64'))
   }
   await page.close()
@@ -114,8 +153,6 @@ for (const c of steps) {
   // one place the template and the terminal fight. The bars are the terminal's
   // own background colour out of the cast header, so the film simply fills the
   // slide. Padding rather than cropping: every column of the stage stays.
-  const bg = (JSON.parse(fs.readFileSync(`${CASTS}/full.cast`, 'utf8').split('\n')[0])
-    .term?.theme?.bg || '#1e1e1e').replace('#', '0x')
   const padW = Math.round(H * 16 / 9 / 2) * 2
 
   // A progress bar burnt into the film, so the slide itself says how much of the
