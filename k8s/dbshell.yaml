@@ -1,0 +1,36 @@
+# A psql that is already running.
+#
+# On stage a database query has to answer immediately, and `kubectl run` against
+# a cold image takes long enough to break the rhythm of a step. This pod sits
+# there doing nothing so that every query is an exec.
+#
+# It connects as the RDS master user, which holds rds_superuser and therefore
+# keeps the reserved connection slots. That is deliberate: when incident 2 walks into
+# the connection wall and locks everything else out, the counter showing the
+# wall is still able to connect.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbshell
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: dbshell }
+  template:
+    metadata:
+      labels: { app: dbshell }
+    spec:
+      serviceAccountName: demo
+      nodeSelector:
+        role: system
+      containers:
+        - name: psql
+          image: postgres:18-alpine
+          command: ["sleep", "infinity"]
+          env:
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }

@@ -1,0 +1,60 @@
+# Incident 1, step 1.2 -- Ruslan fixes production the way Ruslan fixes production.
+#
+# 12 is bigger than 10, the CrashLoop stops, and the fix holds until the day the
+# service starts taking longer. It is a bet that tomorrow looks like today.
+#
+# ONE LINE CHANGES FROM THE PREVIOUS MANIFEST, AND IT IS A PROBE LINE.
+# WARMUP_SECONDS stays at 10. It used to drop from 30 to 15 right here, in the
+# same diff as the probe, with nobody saying so -- which made Ruslan's fix look
+# like it worked partly because the application had been quietly made faster.
+# The application belongs to Timur, changes to it are announced by Timur, and a
+# step about a probe changes the probe.
+#
+# Green here:  warmup 10 < patience 12 + 3x1 = 15, five seconds of margin.
+# Broken next: Timur ships a feature that preloads the catalogue at boot, which
+# takes the warmup to 20 against those same 15 seconds of patience. The kill
+# lands at 15 and the pod would have been ready at 20. Nothing about the probe
+# changed and nothing about the feature was a mistake.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc
+  namespace: demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: svc }
+  template:
+    metadata:
+      labels: { app: svc }
+    spec:
+      serviceAccountName: demo
+      terminationGracePeriodSeconds: 2
+      nodeSelector:
+        role: demo
+      containers:
+        - name: svc
+          image: ${IMAGE}
+          command: ["/api"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WARMUP_SECONDS
+              value: "10"
+            - name: HEALTHZ_MODE
+              value: "local"
+            - name: READY_MODE
+              value: "cached"
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "250m", memory: "64Mi" }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 12
+            periodSeconds: 1
+            timeoutSeconds: 1
+            failureThreshold: 3

@@ -1,0 +1,61 @@
+{
+  "source": "full.cast",
+  "idle_time_limit": 2.0,
+  "duration": 1039.644,
+  "cuts": [
+    {
+      "step": "0",
+      "title": "Who is on call",
+      "from": 6.776,
+      "to": 39.239
+    },
+    {
+      "step": "1.1",
+      "title": "Timur ships a service",
+      "from": 39.239,
+      "to": 108.596
+    },
+    {
+      "step": "1.2",
+      "title": "The number, and the documentation",
+      "from": 108.596,
+      "to": 226.537
+    },
+    {
+      "step": "1.3",
+      "title": "Production config, and real traffic",
+      "from": 226.537,
+      "to": 347.958
+    },
+    {
+      "step": "1.4",
+      "title": "End of incident 1 -- before and after",
+      "from": 347.958,
+      "to": 448.635
+    },
+    {
+      "step": "2.1",
+      "title": "The review that let it through",
+      "from": 448.635,
+      "to": 525.421
+    },
+    {
+      "step": "2.2",
+      "title": "Black Friday: the queue fills",
+      "from": 525.421,
+      "to": 641.024
+    },
+    {
+      "step": "2.3",
+      "title": "The cascade, and the autoscalers help",
+      "from": 641.024,
+      "to": 841.402
+    },
+    {
+      "step": "2.4",
+      "title": "Madina unhooks the probe",
+      "from": 841.402,
+      "to": null
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+# Incident 1, step 1.4 -- the fix, which is two changes and no new code.
+#
+# HEALTHZ_MODE=local: liveness answers "is this process alive" without leaving
+# the process. It cannot be starved by the work the process is doing.
+#
+# And the numbers get slack: 10-second period, 3-second timeout, five misses.
+# A liveness probe should be the last resort, not the first responder -- taking
+# a busy replica out of the load balancer is readiness' job, and readiness stays
+# tight on purpose.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc
+  namespace: demo
+spec:
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: svc }
+  template:
+    metadata:
+      labels: { app: svc }
+    spec:
+      serviceAccountName: demo
+      terminationGracePeriodSeconds: 2
+      nodeSelector:
+        role: demo
+      containers:
+        - name: svc
+          image: ${IMAGE}
+          command: ["/api"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WARMUP_SECONDS
+              value: "20"
+            - name: WORK_LATENCY_MS
+              value: "200"
+            - name: POOL_MAX
+              value: "4"
+            - name: HEALTHZ_MODE
+              value: "local"
+            - name: READY_MODE
+              value: "cached"
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "250m", memory: "64Mi" }
+          startupProbe:
+            httpGet: { path: /startupz, port: 8080 }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3

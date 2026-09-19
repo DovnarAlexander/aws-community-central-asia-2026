@@ -1,0 +1,61 @@
+# Incident 1, step 1.2, second half -- Madina read the documentation.
+#
+# startupProbe gives the slow start its own budget: 60 checks at 2 seconds is
+# two minutes of patience, and while it runs, liveness is not consulted at all.
+# The liveness numbers can then be about steady-state health, which is the only
+# thing they were ever meant to be about.
+#
+# WARMUP_SECONDS is 20 rather than 10 on purpose, and it is not a change to the
+# application: 20 is what `kubectl set env` left the service at a minute ago,
+# when the preloaded catalogue doubled the boot. Writing it down here keeps the
+# apply from quietly undoing the breakage this step is built on, the point being
+# that the same slow start punished a minute ago is now simply waited for. It
+# stays at 20 for the rest of the show: the feature was never taken out, and
+# from here on the startupProbe is what makes boot nobody's problem.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc
+  namespace: demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: svc }
+  template:
+    metadata:
+      labels: { app: svc }
+    spec:
+      serviceAccountName: demo
+      terminationGracePeriodSeconds: 2
+      nodeSelector:
+        role: demo
+      containers:
+        - name: svc
+          image: ${IMAGE}
+          command: ["/api"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WARMUP_SECONDS
+              value: "20"
+            - name: HEALTHZ_MODE
+              value: "local"
+            - name: READY_MODE
+              value: "cached"
+            - name: DSN
+              valueFrom:
+                secretKeyRef: { name: db, key: dsn }
+          resources:
+            requests: { cpu: "250m", memory: "64Mi" }
+          startupProbe:
+            httpGet: { path: /startupz, port: 8080 }
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 3

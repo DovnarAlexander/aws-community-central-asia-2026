@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Builds the stage: one tmux window, four panes, no mouse.
+#
+#   left           the driver -- the only pane you touch
+#   right top      k9s, pods in the demo namespace
+#   right middle   nodes, queue depth, database connections
+#   right bottom   the load generator, one line a second, named in its border
+#
+# The layout is for a projector, not a monitor: the driver gets two thirds of
+# the width, and the right-hand panes get exactly the number of rows their
+# output occupies. Whatever is left goes to the pods, because in incident 2 there are
+# a lot of them and that is the pane that needs to grow.
+#
+# Detach with Ctrl-b d, come back with ./stage. Rebuild from scratch with
+# ./stage --fresh.
+
+set -uo pipefail
+DEMO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SESSION="${SESSION:-probes}"
+STATE="${DEMO_STATE:-/tmp/probes-demo}"
+mkdir -p "$STATE"
+
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "tmux is required: brew install tmux" >&2
+  exit 1
+fi
+
+# ── legibility ───────────────────────────────────────────────────────────────
+# Font size lives in the terminal, not here, so the only thing this can do is
+# catch one that is too small and say so before the talk starts. The measure is
+# simple: the smaller the font, the more columns fit on the same screen. A
+# projector is readable to roughly 120x36.
+COLS=$(tput cols 2>/dev/null); LINES_=$(tput lines 2>/dev/null)
+case "$COLS" in ''|*[!0-9]*) COLS=0 ;; esac
+case "$LINES_" in ''|*[!0-9]*) LINES_=0 ;; esac
+
+if [ "${SKIP_FONT_CHECK:-0}" != 1 ] && [ "$COLS" -gt 0 ] && { [ "$COLS" -gt 120 ] || [ "$LINES_" -gt 36 ]; }; then
+  printf '\n  \033[1;33mThat font is small for a room.\033[0m\n'
+  printf '  The window is %sx%s characters; a projector reads to about 120x36.\n' "$COLS" "$LINES_"
+  printf '  Make it bigger (Cmd +) and run again, or press Enter to continue anyway.\n\n'
+  read -r _ </dev/tty || true
+fi
+
+# An existing session is usually someone returning after Ctrl-b d, so attach.
+# But if the driver pane is a bare shell the session is stale -- the demo was
+# quit with `q`, or the code changed and the old process is still sitting there.
+# Rebuild that one, or the stage ends up without a driver in it.
+if [ "${1:-}" = "--fresh" ]; then
+  tmux kill-session -t "$SESSION" 2>/dev/null
+elif tmux has-session -t "$SESSION" 2>/dev/null; then
+  # A live driver cannot be identified by process name -- it is bash, like
+  # everything else. The pid file is what distinguishes it.
+  pid=''
+  [ -f "$STATE/driver.pid" ] && pid=$(cat "$STATE/driver.pid" 2>/dev/null)
+  if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+    exec tmux attach -t "$SESSION"
+  fi
+  tmux kill-session -t "$SESSION" 2>/dev/null
+fi
+
+tmux new-session -d -s "$SESSION" -c "$DEMO_ROOT" -x "$(tput cols)" -y "$(tput lines)"
+
+# No left/right margins, ever. tmux draws a side-by-side layout by fencing the
+# cursor into one pane's column band -- DECSLRM, `\033[105;167s` -- and writing
+# inside it. A real terminal honours that; asciinema-player's does not, and takes
+# every one of those writes at full width instead, so a recording of this stage
+# plays back with the right-hand panes smeared across the screen and never
+# cleared. Removing the capabilities is what stops tmux reaching for it.
+#
+# On for the live stage too, deliberately: the show and its recording should be
+# the same picture, and the cost is tmux redrawing a pane line by line instead of
+# in one fenced block, which nobody has ever been able to see.
+tmux set-option -t "$SESSION" -ga terminal-overrides ',*:Cmg@:Clmg@:Enmg@:Dsmg@'
+
+# Nothing on screen except the demo.
+tmux set-option -t "$SESSION" -g status off
+tmux set-option -t "$SESSION" -g mouse on
+tmux set-option -t "$SESSION" -g pane-border-style 'fg=colour238'
+tmux set-option -t "$SESSION" -g pane-active-border-style 'fg=colour45'
+tmux set-option -t "$SESSION" -g pane-border-status top
+tmux set-option -t "$SESSION" -g pane-border-format ' #{pane_title} '
+
+# Left and right. The driver gets nearly two thirds: it prints the most and is
+# read the longest. The right column cannot be squeezed further without k9s
+# truncating the RESTARTS column, which is the whole point of incident 1.
+tmux split-window -h -t "$SESSION:0.0" -c "$DEMO_ROOT" -p 38
+
+# Right column: pods, stats, load. Heights in rows rather than percentages,
+# because the stat panel and the load panel have fixed-length output and would
+# only leave extra rows blank. The remainder goes to the pods, of which incident 2
+# has a great many.
+#
+# Load gets eleven rows rather than eight. Its frame is a title, the four
+# columns, four seconds of history and a line of totals, and at eight the title
+# scrolled away the first time a value came out wider than expected. The three
+# rows come out of the pods pane, which has more than twenty either way.
+#
+# Split bottom-up and at the final height directly: resize-pane after a
+# percentage split hands the freed rows to the neighbour below, and the panes
+# start tugging them back and forth.
+tmux split-window -v -t "$SESSION:0.1" -c "$DEMO_ROOT" -l 11
+tmux split-window -v -t "$SESSION:0.1" -c "$DEMO_ROOT" -l 5
+
+tmux select-pane -t "$SESSION:0.0" -T 'DEMO'
+tmux select-pane -t "$SESSION:0.1" -T 'PODS'
+tmux select-pane -t "$SESSION:0.2" -T 'NODES / QUEUE / DB'
+tmux select-pane -t "$SESSION:0.3" -T 'LOAD'
+
+# No header, logo or breadcrumbs: the room needs the pod rows, and k9s spends a
+# third of the pane on its own furniture by default.
+tmux send-keys -t "$SESSION:0.1" "k9s --headless --logoless --crumbsless --readonly -n demo --command pods" C-m
+tmux send-keys -t "$SESSION:0.2" "$DEMO_ROOT/scripts/stat.sh" C-m
+# Not a bare `kubectl logs -f`: at stage-build time there is no loadgen pod, so
+# that command failed once and left the pane a dead shell for the rest of the
+# talk. scripts/loadpanel.sh waits for each of the four loads in turn.
+tmux send-keys -t "$SESSION:0.3" "$DEMO_ROOT/scripts/loadpanel.sh" C-m
+# DEMO_ARGS lets a recording start where the segment starts: the deck carries
+# one cast per incident, not one file for the whole show.
+tmux send-keys -t "$SESSION:0.0" "clear; ./demo ${DEMO_ARGS:-}" C-m
+
+tmux select-pane -t "$SESSION:0.0"
+exec tmux attach -t "$SESSION"

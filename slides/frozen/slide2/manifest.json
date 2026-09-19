@@ -1,0 +1,9 @@
+{
+ "why": "Slide 2 as the author laid it out in PowerPoint. The build injects it verbatim instead of generating it: the photograph, the wording and the two credentials that are not in talk.md live here and nowhere else.",
+ "layout": "slideLayouts/slideLayout3.xml",
+ "media": {
+  "rId3": "image2.png",
+  "rId4": "image3.jpg"
+ },
+ "has_notes": true
+}

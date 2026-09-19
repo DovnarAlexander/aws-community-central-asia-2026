@@ -42,3 +42,45 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+# Lambda build artifacts
+infra/*/.build/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Terragrunt
+.terragrunt-cache/
+.terragrunt-stack/
+infra/local.hcl
+
+# The deck builds from slides/talk.md; the build and the export do not belong in
+# git. The casts and the vendored player do -- they are the fallback, and a
+# fallback you have to rebuild on the day is not one. full.cast is the whole of
+# it -- the deck plays ranges of that one recording rather than a file per step,
+# so it is not a build artefact, it is the artefact.
+slides/dist/
+slides/talk.pdf
+
+# slides/talk.pptx is committed rather than ignored. It is a build output and
+# it is forty-five megabytes, so it does not belong in git by the usual rules,
+# but this one is the artefact a conference is handed and it has to be gettable
+# from the repository alone, on a laptop that has no ffmpeg and no recording.
+#
+# The conference template stays out: it is theirs, and at 127MB it is over the
+# limit GitHub refuses outright rather than merely warns about.
+slides/template.pptx
+
+# `task deck:pptx` films the recordings into here. Rebuilding is one command and
+# the videos are forty megabytes, so the work directory stays out of the repo.
+.pptx-build/
+slides/talk-animated-proof.pptx
+slides/node_modules/
+
+.env
+
+# macOS
+.DS_Store
+
+# Office leaves a lock file beside an open document
+~$*

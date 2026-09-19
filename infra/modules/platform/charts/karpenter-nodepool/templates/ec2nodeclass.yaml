@@ -1,0 +1,37 @@
+# What Karpenter launches: where, as whom, and tagged so the reaper can find it.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: demo
+spec:
+  # Bottlerocket, Graviton, and no version of its own: the alias resolves to the
+  # arm64 image published for whatever Kubernetes version the control plane is
+  # running, so a cluster upgrade carries the nodes with it.
+  #
+  # Nothing the demo runs needs a general-purpose OS. Bottlerocket ships a
+  # kubelet, containerd and no shell, which is a smaller image to pull before a
+  # Pending pod can land -- and on this stage the time between Pending and
+  # Running is a number the audience is reading.
+  #
+  # blockDeviceMappings stays unset on purpose: Karpenter already knows the
+  # two-volume layout this family expects (4 GiB root on /dev/xvda, 20 GiB of
+  # container storage on /dev/xvdb) and fills it in.
+  amiSelectorTerms:
+    - alias: bottlerocket@latest
+
+  role: {{ .Values.nodeRole | quote }}
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: {{ .Values.clusterName | quote }}
+
+  # Selected by id rather than tag: the cluster's node security group already
+  # carries the rules that let a node reach the API server and RDS, and an id
+  # cannot silently match the wrong thing.
+  securityGroupSelectorTerms:
+    - id: {{ .Values.securityGroupId | quote }}
+
+  tags:
+{{- range $k, $v := .Values.tags }}
+    {{ $k }}: {{ $v | quote }}
+{{- end }}
