@@ -44,6 +44,11 @@ const ROWS = HEAD.term?.rows || HEAD.height || 24
 const BG = (HEAD.term?.theme?.bg || '#1e1e1e')
 const bg = BG.replace('#', '0x')
 
+// Steps held longer in the deck than they ran, as a factor on every frame's
+// duration. Shared with extract.py, which has to tell the notes how long the
+// slide is; the file says why each entry is there.
+const HOLD = JSON.parse(fs.readFileSync('scripts/pptx/hold.json', 'utf8'))
+
 const PAGE = `<!doctype html><meta charset="utf-8">
 <link rel="stylesheet" href="/vendor/asciinema-player.css">
 <style>html,body{margin:0;background:${BG};overflow:hidden}#p{width:100vw}
@@ -142,7 +147,8 @@ for (const c of steps) {
   for (let i = 0; i < times.length; i++) {
     list.push(`file 'f${String(i).padStart(5, '0')}.jpg'`)
     const next = i + 1 < times.length ? times[i + 1] : end
-    list.push(`duration ${Math.max(0.01, next - times[i]).toFixed(4)}`)
+    const hold = HOLD[c.step] || 1
+    list.push(`duration ${Math.max(0.01, (next - times[i]) * hold).toFixed(4)}`)
   }
   list.push(`file 'f${String(times.length - 1).padStart(5, '0')}.jpg'`)
   fs.writeFileSync(`${work}/list.txt`, list.join('\n'))
@@ -186,7 +192,8 @@ for (const c of steps) {
     '-i', mp4, '-vframes', '1', '-q:v', '4', `${OUT}/covers/${c.step}.jpg`])
   fs.rmSync(work, { recursive: true, force: true })
   const mb = fs.statSync(mp4).size / 1048576
-  console.log(`  ${c.step.padEnd(5)} ${String(Math.round(end - c.from)).padStart(3)}s  ${padW}x${H} (16:9)  ${times.length} frames  ${mb.toFixed(1)} MB`)
+  const held = Math.round((end - c.from) * (HOLD[c.step] || 1))
+  console.log(`  ${c.step.padEnd(5)} ${String(held).padStart(3)}s  ${padW}x${H} (16:9)  ${times.length} frames  ${mb.toFixed(1)} MB`)
 }
 await browser.close()
 srv.close()

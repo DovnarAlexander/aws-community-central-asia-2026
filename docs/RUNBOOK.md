@@ -91,6 +91,23 @@ any pane to full screen and back.
 
 ## Timing
 
+Every speaker note carries its own clock in its first line -- how long that slide is, and
+where the running total should be when it ends:
+
+```
+SLIDE 15 OF 23 · THE LOOP · 8 clicks · 0:54 · by 15:08
+```
+
+None of those numbers are typed in. A recording's length comes from the cut manifest; a
+static slide's is its note read at `TALK_WPM` words a minute, 140 by default, counting only
+what is actually said: square brackets are stage directions and a line with a name in front
+of it is the screen talking, not you. Turn the dial if a rehearsal comes out consistently
+fast or slow -- `TALK_WPM=130 task deck:pptx`.
+
+Against a 30-minute slot the deck is **27:19**, of which 17 minutes is recordings playing.
+The four longest -- 2.2, 2.3, 2.4 and 1.2 -- have between fifty seconds and two minutes of
+slack in them, which is where a question mid-talk gets absorbed.
+
 35 minutes, and the buffer is not optional for a live cloud demo.
 
 There are no slides. The six minutes of theory became one card in the titles, eight `teach`

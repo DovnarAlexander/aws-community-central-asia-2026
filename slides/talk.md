@@ -96,41 +96,38 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-[{len}, starts on its own. Everything below is on the screen -- read it, do not summarise it]
+[{len}, starts on its own. Everything below is on the screen. Let it play; the
+lines in quotes with a name in front of them are the recording talking, not you]
 
-"Reaching the cluster. Waking the database. Calling the developer. Calling the DevOps. Hiring an intern."
+[the boot sequence, then the title card]
 
-"THE PROBE THAT KILLED ITSELF. A real cluster, a real database, real failures. Nothing is recorded -- including the parts that go wrong."
+[the title card: a real cluster, a real database, real failures, nothing
+recorded -- including the parts that go wrong]
 
-"On call.
+[the cast, one at a time]
 
-Timur, backend: 'I wrote the service. It takes ten seconds to start: warms a cache, opens a pool. The probe I copied from a blog post. It is green, so it is correct.'
-
-Ruslan, DevOps: 'Any production problem is a number in a YAML file. The method works. It has never failed me before today.'
-
-Madina, intern: 'I read the documentation.' -- and nobody asks her opinion for a while.
-
-kubelet, the executioner: 'I do not read your code. I read your manifest, and then I pull the trigger.'
-
-Postgres, the database: 'Two vCPU, fifty-four connections you may have, and a great deal of patience.'
-
-KEDA, the pod autoscaler: 'The queue is deep, so I will add workers.' It has no other ideas.
-
-Karpenter, the node autoscaler: 'Pods are Pending, so I will buy machines.' This one has a credit card.
-
-Any resemblance to your team is coincidental. Probably."
+Timur, backend: "I wrote the service. It takes ten seconds to start: warms a cache, opens a pool. The probe I copied from a blog post. It is green, so it is correct."
+Ruslan, DevOps: "Any production problem is a number in a YAML file. The method works. It has never failed me before today."
+Madina, intern: "I read the documentation." -- and nobody asks her opinion for a while.
+kubelet, the executioner: "I do not read your code. I read your manifest, and then I pull the trigger."
+Postgres, the database: "Two vCPU, fifty-four connections you may have, and a great deal of patience."
+KEDA, the pod autoscaler: "The queue is deep, so I will add workers." It has no other ideas.
+Karpenter, the node autoscaler: "Pods are Pending, so I will buy machines." This one has a credit card.
 
 [click for the card]
 
-"What this talk is about. Every container you run has something asking it questions. Not a load balancer, not a human: kubelet, every few seconds, forever, using numbers out of your manifest.
+[the card: what the talk is about -- kubelet asks, three questions, a probe is
+the only thing that kills a working process]
 
-Startup: has it finished booting? Liveness: is it alive -- and a wrong answer restarts it. Readiness: can it serve -- and a wrong answer unplugs it.
+[yours, over the top of it, and nothing more than this]
 
-Of everything that can take a container down -- a crash, an OOM, an eviction, a rollout -- a probe is the only one that does it while the process is working perfectly well."
+"Seven characters, and the two that matter are not people. Karpenter has a
+credit card. Remember that."
 
 "Two incidents. Both times the service was killed by a check, not by traffic."
 
-[do not skip it -- "Madina unhooks the probe" later does not land on a room that has never met her]
+[do not skip this slide -- "Madina unhooks the probe" later does not land on a
+room that has never met her]
 -->
 
 ---

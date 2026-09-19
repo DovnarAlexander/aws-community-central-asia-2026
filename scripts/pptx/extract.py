@@ -8,7 +8,7 @@ presenter notes -- the deck is written as Slidev markdown with HTML in it, and
 PowerPoint wants none of that, so the structure is read out once here and the
 builder never touches markdown.
 """
-import json, re, sys, pathlib, html
+import json, os, re, sys, pathlib, html
 
 # `--scenes` prints the diagram groupings for the layer renderer, so the task
 # script does not carry a second copy of them that can fall out of step with the
@@ -68,16 +68,57 @@ def clean(t, keep_blanks=False):
 # Cut lengths, so a note can say how long its recording runs without anybody
 # keeping the number in step by hand. Re-recording the show moves every one of
 # them; retyping them into talk.md is how a note ends up lying.
-LENGTHS, STEPTITLES = {}, {}
+LENGTHS, STEPTITLES, SECONDS = {}, {}, {}
 try:
     with open('slides/public/casts/full.cuts.json') as fh:
         man = json.load(fh)
+    hold = json.load(open('scripts/pptx/hold.json'))
     for c in man['cuts']:
         secs = (c['to'] if c['to'] is not None else man['duration']) - c['from']
+        # A step the deck holds longer than it ran is that much longer on the
+        # slide, and the note has to say the number the speaker will watch.
+        secs *= hold.get(c['step'], 1)
         LENGTHS[c['step']] = f'{int(secs // 60)}:{int(secs % 60):02d}'
         STEPTITLES[c['step']] = c['title']
+        SECONDS[c['step']] = secs
 except (OSError, KeyError, ValueError):
     pass
+
+# Words a minute. A technical talk delivered carefully, not a podcast: this is
+# the dial to turn if the rehearsed clock comes out consistently fast or slow.
+WPM = float(os.environ.get('TALK_WPM', 140))
+
+
+# A line attributed to somebody is on the screen -- the recording is already
+# saying it, and the speaker is not reading it out. A bare line is the
+# speaker's own. That convention is what makes a recording slide's timing
+# checkable at all: counting the screen's dialogue as speech says a two-minute
+# segment needs three and a half minutes of talking, which is only true if you
+# are reading the film aloud.
+# Names carry commas and roles ("Timur, backend:") and some of them are
+# lowercase on purpose ("kubelet, the executioner:"), so neither an initial
+# capital nor a single word can be required.
+NAMED = re.compile(r'^\s*(?:\d+\s+)?[A-Za-z][A-Za-z\'\u2019, ]{1,28}:\s*["\u201c]')
+
+
+def spoken_seconds(notes):
+    """Seconds of speech in a note.
+
+    Square brackets are stage directions -- what appears, where to point, what
+    the room is doing -- and nobody says them out loud. A leading number is the
+    click the line belongs to. Neither is counted, and neither is a line the
+    screen is already speaking.
+    """
+    words = 0
+    for line in notes.splitlines():
+        if NAMED.match(line):
+            continue
+        bare = re.sub(r'\[[^\]]*\]', ' ', line)
+        bare = re.sub(r'^\s*\d+\s*', ' ', bare)
+        words += len(bare.split())
+    return words / WPM * 60
+
+
 
 out = []
 for s in slides:
@@ -113,6 +154,11 @@ for s in slides:
         'steptitle': STEPTITLES.get(step.group(1), '') if step else '',
         'notes': (notes.replace('{len}', LENGTHS.get(step.group(1), '?:??'))
                   if step else notes),
+        # How long this slide is on screen. A recording is however long it
+        # runs; anything else is however long its notes take to say, which is
+        # the only honest estimate available and the one the speaker controls.
+        'seconds': (SECONDS.get(step.group(1), 0) if step
+                    else spoken_seconds(notes)),
     })
 json.dump(out, open(sys.argv[1], 'w'), indent=1, ensure_ascii=False)
 print(f"  {len(out)} slides, {sum(1 for s in out if s['step'])} of them a recording")

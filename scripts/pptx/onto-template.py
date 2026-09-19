@@ -433,6 +433,12 @@ def stamp_notes(deck, plan, title_of):
     adding a bullet.
     """
     total = len(plan)
+    # Cumulative, so every note says where the clock should be when it ends.
+    running, acc = [], 0.0
+    for _, s, _ in plan:
+        acc += s.get('seconds', 0)
+        running.append(acc)
+    print(f'  {clock(acc)} of talk, by the notes')
     for pos, (_, s, slide) in enumerate(plan, 1):
         rels = deck.read(deck.rels_of(slide))
         m = re.search(r'Target="\.\./(notesSlides/notesSlide\d+\.xml)"', rels)
@@ -443,7 +449,9 @@ def stamp_notes(deck, plan, title_of):
             named = s.get('steptitle', '')
             title = f"{s['step']} {named}" if named else f"recording {s['step']}"
 
-        head = note_header(pos, total, title or title_of(s), press_count(deck.read(slide)))
+        head = note_header(pos, total, title or title_of(s),
+                           press_count(deck.read(slide)),
+                           s.get('seconds', 0), running[pos - 1])
         part = 'ppt/' + m.group(1)
         xml = deck.read(part)
         first = re.search(r'(<a:p>.*?</a:p>)', xml, re.S)
@@ -453,20 +461,28 @@ def stamp_notes(deck, plan, title_of):
             deck.write(part, xml)
 
 
-def note_header(pos, total, title, clicks):
+def clock(secs):
+    return f'{int(secs // 60)}:{int(secs % 60):02d}'
+
+
+def note_header(pos, total, title, clicks, length=0, upto=0):
     """The first line of a note: where you are, and how many presses are left.
 
     Counted from the deck rather than typed into talk.md, because a hand-written
     count is wrong the first time a step is added and nobody notices until they
     are on stage pressing a clicker that has stopped doing anything.
     """
-    where = f'SLIDE {pos} OF {total}'
-    what = title.upper() if title else 'RECORDING'
-    if clicks == 0:
-        return f'{where} \u00b7 {what} \u00b7 no clicks'
+    bits = [f'SLIDE {pos} OF {total}', title.upper() if title else 'RECORDING']
     if clicks == 1:
-        return f'{where} \u00b7 {what} \u00b7 1 click'
-    return f'{where} \u00b7 {what} \u00b7 {clicks} clicks'
+        bits.append('1 click')
+    elif clicks:
+        bits.append(f'{clicks} clicks')
+    if length:
+        # The running clock is what a rehearsal is actually checked against:
+        # a slide that is ninety seconds long is fine until it is the slide
+        # that puts you past the slot.
+        bits.append(f'{clock(length)} \u00b7 by {clock(upto)}')
+    return ' \u00b7 '.join(bits)
 
 
 # A note is read at a glance, in a small pane, by somebody who is also talking.
