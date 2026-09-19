@@ -549,6 +549,16 @@ def appear_group(spids, ident):
     return step, n + 1
 
 
+def bold_reveal_chars(spid, start, end, ident):
+    """Bold reveal over a run of characters inside one paragraph.
+
+    Splitting a sentence into boxes so a phrase could be emphasised left the
+    fragments to be positioned by eye, and they did not line up. A character
+    range keeps the sentence in one box, where it lines itself up.
+    """
+    return _bold(spid, f'<p:charRg st="{start}" end="{end}"/>', ident)
+
+
 def bold_reveal(spid, para, ident):
     """A phrase turning bold one letter at a time.
 
@@ -557,8 +567,12 @@ def bold_reveal(spid, para, ident):
     simply be there. PowerPoint calls it Bold Reveal -- emphasis preset 15,
     iterating over letters at 25ms, setting style.fontWeight on one paragraph.
     """
+    return _bold(spid, f'<p:pRg st="{para}" end="{para}"/>', ident)
+
+
+def _bold(spid, txel, ident):
     inner = (f'<p:set><p:cBhvr override="childStyle"><p:cTn id="{ident + 3}" dur="indefinite"/>'
-             f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl><p:pRg st="{para}" end="{para}"/></p:txEl>'
+             f'<p:tgtEl><p:spTgt spid="{spid}"><p:txEl>{txel}</p:txEl>'
              f'</p:spTgt></p:tgtEl><p:attrNameLst><p:attrName>style.fontWeight</p:attrName>'
              f'</p:attrNameLst></p:cBhvr><p:to><p:strVal val="bold"/></p:to></p:set>')
     a, b, c = ident, ident + 1, ident + 2
@@ -627,11 +641,36 @@ def recolour(spid, para, rgb, ident):
     return step, nxt + 1
 
 
-def animate(xml, steps, builds):
-    """Wrap a list of click steps into the slide's timing tree."""
+def animate(xml, steps, builds=()):
+    """Wrap a list of click steps into the slide's timing tree.
+
+    The build list is worked out from the steps rather than passed in, because
+    leaving it out is the one mistake that makes every animation on a slide a
+    no-op: without a <p:bldP> for a shape, PowerPoint draws it the moment the
+    slide opens and the entrance has nothing left to do. A shape animated a
+    paragraph at a time builds by paragraph; one with a fill animates its
+    background with it, or the panel appears before the text inside it.
+    """
     if not steps:
         return xml
-    bld = ''.join(f'<p:bldP spid="{s}" grpId="0" build="p"/>' for s in sorted(builds))
+    filled = {i for i in re.findall(r'<p:cNvPr id="(\d+)"', xml)
+              if re.search(rf'<p:cNvPr id="{i}"[^>]*>.*?<a:solidFill>', xml, re.S)}
+    seen, order = {}, []
+    for step in steps:
+        by_para = '<p:pRg' in step or '<p:charRg' in step
+        for i in re.findall(r'spid="(\d+)"', step):
+            if i not in seen:
+                order.append(i)
+            seen[i] = seen.get(i, False) or by_para
+    bld = ''
+    for i in order:
+        attrs = ' build="p"' if seen[i] else ''
+        if not seen[i] and i in filled:
+            attrs += ' animBg="1"'
+        bld += f'<p:bldP spid="{i}" grpId="0"{attrs}/>'
+    for i in sorted(builds):
+        if i not in seen:
+            bld += f'<p:bldP spid="{i}" grpId="0" build="p"/>' 
     tree = ('<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never"'
             ' nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek">'
             '<p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>'
@@ -794,6 +833,7 @@ def _cards(xml, items, y, h, gap=0.28):
 def d_questions(xml, s, ctx):
     xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE),
                    [(s['prose'].splitlines()[0], 17, INK, False)])
+    lede = str(next_id(xml) - 1)
     xml, ids = _cards(xml, [
         ('startup', 'has it finished booting?',
          'while it runs, the other two are not consulted at all', TEAL),
@@ -808,6 +848,7 @@ def d_questions(xml, s, ctx):
         xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, False)])
         last = str(next_id(xml) - 1)
     steps, ident = [], 10
+    step, ident = appear_group([lede], ident); steps.append(step)
     for pair in ids:
         step, ident = fly_in(list(pair), ident)
         steps.append(step)
@@ -826,14 +867,15 @@ def d_arithmetic(xml, s, ctx):
     from glyph widths would be a guess about a font this machine cannot render.
     """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    ids = []
-    for text, box in [('The service warms up for', (0.43, 1.34, 2.30, 0.31)),
-                      ('10 seconds.', (2.69, 1.34, 1.25, 0.31)),
-                      ('Every number in this probe is defensible on its own.',
-                       (3.91, 1.36, 4.63, 0.31))]:
-        xml = add_text(xml, box, [(text, 15, INK, False)])
-        ids.append(str(next_id(xml) - 1))
-    warmup = ids[1]
+    # One box, one paragraph: three boxes had to be placed by eye and the gaps
+    # between them were visibly wrong. The phrase is emphasised by character
+    # range instead, which needs no geometry at all.
+    lede = 'The service warms up for 10 seconds. Every number in this probe is defensible on its own.'
+    phrase = '10 seconds'
+    at = lede.index(phrase)
+    xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lede, 17, INK, False)])
+    lede_id = str(next_id(xml) - 1)
+    ids = [lede_id]
 
     code = s['code'][0]['text'].split('\n')
     xml, card = add_shape(xml, (0.39, 2.35, 6.10, 2.90), 'roundRect',
@@ -861,7 +903,7 @@ def d_arithmetic(xml, s, ctx):
 
     steps, ident = [], 10
     step, ident = appear_group(ids, ident); steps.append(step)
-    step, ident = bold_reveal(warmup, 0, ident); steps.append(step)
+    step, ident = bold_reveal_chars(lede_id, at, at + len(phrase), ident); steps.append(step)
     # The card and its first line together, then a line a press.
     step, ident = appear_group([card], ident); steps.append(step)
     for n in range(len(code)):
@@ -1052,8 +1094,10 @@ def d_loop(xml, s, ctx):
         arrow_ids.append(i)
 
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    caption = None
     if lines:
-        xml = add_text(xml, (L, BOT - 0.5, R - L, 0.5), [(lines[0], 15, INK, True)])
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(lines[0], 16, INK, True)])
+        caption = str(next_id(xml) - 1)
 
     # One press per turn: the arrow into a box arrives with the box.
     steps, ident = [], 10
@@ -1064,6 +1108,9 @@ def d_loop(xml, s, ctx):
         steps.append(step)
     step, ident = appear_group([arrow_ids[5]], ident)     # the loop closes
     steps.append(step)
+    if caption:
+        step, ident = appear_group([caption], ident)
+        steps.append(step)
     return animate(xml, steps, set())
 
 
@@ -1075,7 +1122,8 @@ def d_verdicts(xml, s, ctx):
     one it would rather have before the second appears.
     """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    xml = add_text(xml, (L, TOP, R - L, 0.5), [(lines[0], 16, INK, False)])
+    xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
+    lede = str(next_id(xml) - 1)
 
     root_w = 4.3
     xml, root = add_shape(xml, ((SLIDE_W - root_w) / 2, TOP + 0.55, root_w, 0.55),
@@ -1122,6 +1170,8 @@ def d_verdicts(xml, s, ctx):
         last = str(next_id(xml) - 1)
 
     steps, ident = [], 10
+    step, ident = appear_group([lede], ident); steps.append(step)
+    step, ident = appear_group([root], ident); steps.append(step)
     for ids in groups:
         step, ident = appear_group(ids, ident)
         steps.append(step)
@@ -1142,8 +1192,10 @@ def d_architecture(xml, s, ctx):
     everything in the next twenty minutes runs into.
     """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    lede = None
     if lines:
-        xml = add_text(xml, (L, TOP, R - L, 0.5), [(lines[0], 16, INK, False)])
+        xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
+        lede = str(next_id(xml) - 1)
 
     bw, bh = 3.6, 1.0
     xs = [0.62, 4.62, 8.62]
@@ -1188,6 +1240,8 @@ def d_architecture(xml, s, ctx):
     order = [[ids[0]], [arrows[0], ids[1]], [arrows[1], ids[2]],
              [arrows[2], ids[3]], [arrows[3], ids[4]], [arrows[4], ids[5]]]
     steps, ident = [], 10
+    if lede:
+        step, ident = appear_group([lede], ident); steps.append(step)
     for group in order:
         step, ident = appear_group(group, ident)
         steps.append(step)
