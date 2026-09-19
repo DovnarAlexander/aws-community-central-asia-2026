@@ -23,6 +23,7 @@ filling the slide has no room for a footer across it.
 
 import json
 import os
+import struct
 import re
 import shutil
 import subprocess
@@ -817,34 +818,6 @@ def _cards(xml, items, y, h, gap=0.28):
     return xml, ids
 
 
-def d_questions(xml, s, ctx):
-    xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE),
-                   [(s['prose'].splitlines()[0], 17, INK, False)])
-    lede = str(next_id(xml) - 1)
-    xml, ids = _cards(xml, [
-        ('startup', 'has it finished booting?',
-         'while it runs, the other two are not consulted at all', TEAL),
-        ('liveness', 'is the process alive?',
-         'a wrong answer restarts the container', ORANGE),
-        ('readiness', 'can it serve right now?',
-         'a wrong answer takes the pod out of the Service', TEAL),
-    ], Y_MAIN, H_MAIN)
-    tail = [l for l in s['prose'].splitlines() if l.startswith('Of everything')]
-    last = None
-    if tail:
-        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, False)])
-        last = str(next_id(xml) - 1)
-    steps, ident = [], 10
-    step, ident = appear_group([lede], ident); steps.append(step)
-    for pair in ids:
-        step, ident = fly_in(list(pair), ident)
-        steps.append(step)
-    if last:
-        step, ident = appear_group([last], ident)
-        steps.append(step)
-    return animate(xml, steps, set())
-
-
 def d_arithmetic(xml, s, ctx):
     """The manifest, the number it comes to, and what that costs.
 
@@ -1041,189 +1014,105 @@ def d_checklist(xml, s, ctx):
     return animate(xml, steps, set())
 
 
-def d_loop(xml, s, ctx):
-    """The cascade, as shapes rather than a flat picture.
+# Which Excalidraw scene each slide draws, and in what order it is revealed.
+# The indexes are into the scene's own element list, so a group is "the arrow
+# and the box it points at" rather than a region of a picture.
+SCENES = {
+    'Something is asking your container questions': ('probes', [
+        [0, 1],
+        [7, 2, 3, 4, 8, 5, 6],
+        [14, 9, 10, 11, 15, 12, 13],
+        [21, 16, 17, 18, 22, 19, 20],
+    ]),
+    'What is actually running': ('architecture', [
+        [0, 1, 2, 3, 14, 15],
+        [4, 5],
+        [18, 6, 7],
+        [19, 8, 9],
+        [23, 16, 17, 24],
+        [20, 25, 10, 11, 21, 12, 13, 22],
+    ]),
+    'The question the probe was asking': ('verdicts', [
+        [0, 1],
+        [10, 2, 3, 12, 6, 7, 14],
+        [11, 4, 5, 13, 8, 9, 15],
+    ]),
+    'The loop': ('loop', [
+        [0, 1],
+        [12, 2, 3],
+        [13, 4, 5],
+        [14, 6, 7],
+        [15, 8, 9],
+        [16, 10, 11, 20],
+        [17, 18, 19],
+    ]),
+}
 
-    It was a PNG, and a picture of a circle cannot show a circle turning. Six
-    boxes and six arrows, one press each, so the room watches the loop close
-    instead of being handed it finished.
+
+def png_size(path):
+    with open(path, 'rb') as f:
+        d = f.read(24)
+    return struct.unpack('>II', d[16:24])
+
+
+def d_scene(xml, s, ctx):
+    """A hand-drawn scene, stacked as layers and revealed a group per press.
+
+    Every diagram in the deck is one of these now. Drawing them again out of
+    rounded rectangles and block arrows made flowcharts; the scenes were already
+    in slides/diagrams, drawn, and a drawn arrow is the difference between a
+    diagram somebody made and a diagram a tool emitted.
+
+    diagram-layers.mjs exports each scene once per group with the other groups
+    at zero opacity, so every layer is the same size on the same origin and they
+    stack back into the drawing to the pixel.
     """
-    NODES = [
-        ('the probe asks the database', TEAL),
-        ('replicas go NotReady', TEAL),
-        ('workers stop consuming SQS', TEAL),
-        ('queue depth grows', TEAL),
-        ('KEDA adds workers', TEAL),
-        ('Karpenter buys nodes', ORANGE),     # the only step with a price tag
-    ]
-    bw, bh = 3.52, 0.95
-    xs = [0.62, 4.93, 9.24]
-    top, bottom = 2.0, 4.72
-    # Top row runs left to right, the bottom row runs back, and the two ends
-    # join up: the same shape the driver prints in the terminal.
-    where = [(xs[0], top), (xs[1], top), (xs[2], top),
-             (xs[2], bottom), (xs[1], bottom), (xs[0], bottom)]
-    arrows = [
-        ('rightArrow', xs[0] + bw + 0.08, top + bh / 2 - 0.16, 0.72, 0.32),
-        ('rightArrow', xs[1] + bw + 0.08, top + bh / 2 - 0.16, 0.72, 0.32),
-        ('downArrow', xs[2] + bw / 2 - 0.16, top + bh + 0.12, 0.32, bottom - top - bh - 0.24),
-        ('leftArrow', xs[1] + bw + 0.08, bottom + bh / 2 - 0.16, 0.72, 0.32),
-        ('leftArrow', xs[0] + bw + 0.08, bottom + bh / 2 - 0.16, 0.72, 0.32),
-        ('upArrow', xs[0] + bw / 2 - 0.16, top + bh + 0.12, 0.32, bottom - top - bh - 0.24),
-    ]
-    node_ids, arrow_ids = [], []
-    for (label, colour), (x, y) in zip(NODES, where):
-        xml, i = add_shape(xml, (x, y, bw, bh), 'roundRect', fill='FFFFFF',
-                           line=colour, text=label, size=13, colour=INK, adj=14000)
-        node_ids.append(i)
-    for prst, x, y, w, h in arrows:
-        xml, i = add_shape(xml, (x, y, w, h), prst, fill=MUTED, line=None)
-        arrow_ids.append(i)
-
+    name, groups = SCENES[s['title']]
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    caption = None
-    if lines:
-        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(lines[0], 16, INK, True)])
-        caption = str(next_id(xml) - 1)
-
-    # One press per turn: the arrow into a box arrives with the box.
-    steps, ident = [], 10
-    step, ident = appear_group([node_ids[0]], ident)
-    steps.append(step)
-    for k in range(1, 6):
-        step, ident = appear_group([arrow_ids[k - 1], node_ids[k]], ident)
-        steps.append(step)
-    step, ident = appear_group([arrow_ids[5]], ident)     # the loop closes
-    steps.append(step)
-    if caption:
-        step, ident = appear_group([caption], ident)
-        steps.append(step)
-    return animate(xml, steps, set())
-
-
-def d_verdicts(xml, s, ctx):
-    """The same failed check down two probes, drawn rather than boxed.
-
-    This was built out of rounded rectangles and block arrows, which read as a
-    flowchart rather than as something somebody drew. The scene already existed
-    in slides/diagrams as Excalidraw, so it is used: diagram-layers.mjs exports
-    it three times with the other layers made transparent, which keeps every
-    layer the same size on the same origin, and the slide stacks them. One press
-    per branch, and the arrows arrive drawn.
-    """
-    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
-    lede = str(next_id(xml) - 1)
-
     work = ctx['work']
-    layers, ar = [], 2726 / 985
-    for k in (1, 2, 3):
-        f = os.path.join(work, 'img', f'verdicts-{k}.png')
-        if not os.path.exists(f):
-            layers = []
-            break
-        layers.append(f)
 
+    lede = None
+    if lines:
+        xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
+        lede = str(next_id(xml) - 1)
+
+    files = [os.path.join(work, 'img', f'{name}-{k + 1}.png') for k in range(len(groups))]
     ids = []
-    if layers:
+    if all(os.path.exists(f) for f in files):
+        w_px, h_px = png_size(files[0])
         top, bottom = 2.22, 5.58
         h = bottom - top
-        w = h * ar
+        w = h * w_px / h_px
+        if w > R - L:                      # a wide scene is bounded by width
+            w = R - L
+            h = w * h_px / w_px
+            top = 2.22 + (3.36 - h) / 2
         box = ((SLIDE_W - w) / 2, top, w, h)
-        for k, f in enumerate(layers, 1):
-            rid = deck_rel(ctx, f, f'verdicts-{k}.png')
-            xml = add_pic(xml, rid, box, f'Verdicts {k}')
+        for k, f in enumerate(files, 1):
+            rid = deck_rel(ctx, f, f'{name}-{k}.png')
+            xml = add_pic(xml, rid, box, f'{name} {k}')
             ids.append(str(next_id(xml) - 1))
 
-    tail = [l for l in lines if l.startswith('Which makes')]
+    tail = [l for l in lines[1:] if len(l) > 20]
     closing = None
     if tail:
-        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, True)])
+        xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[-1], 16, INK, True)])
         closing = str(next_id(xml) - 1)
 
     steps, ident = [], 10
-    step, ident = appear_group([lede], ident); steps.append(step)
+    if lede:
+        step, ident = appear_group([lede], ident); steps.append(step)
     for i in ids:
         step, ident = appear_group([i], ident); steps.append(step)
     if closing:
         step, ident = appear_group([closing], ident); steps.append(step)
     return animate(xml, steps, set())
 
-def d_architecture(xml, s, ctx):
-    """What is running, revealed along the path a request takes.
-
-    This one was left as a picture on the grounds that a reference drawing has
-    no order to reveal it in. That was wrong: the order is the request. It
-    arrives at the api, goes on the queue, a worker picks it up and reaches the
-    database, and only then do the two autoscalers appear, watching. The
-    database is the one box in the other colour because it is the wall
-    everything in the next twenty minutes runs into.
-    """
-    lines = [l for l in s['prose'].splitlines() if len(l) > 3]
-    lede = None
-    if lines:
-        xml = add_text(xml, (L, Y_LEDE, R - L, H_LEDE), [(lines[0], 17, INK, False)])
-        lede = str(next_id(xml) - 1)
-
-    bw, bh = 3.6, 1.0
-    xs = [0.62, 4.62, 8.62]
-    top, bot = 2.25, 4.55
-    NODES = [
-        # box, row, colour, label
-        (xs[0], top, TEAL, 'api\n/work  /healthz  /ready'),
-        (xs[1], top, TEAL, 'SQS work queue'),
-        (xs[2], top, TEAL, 'worker\nSQS consumer'),
-        (xs[2], bot, ORANGE, 'RDS PostgreSQL\nmax_connections 57'),
-        (xs[1], bot, TEAL, 'KEDA\nreads queue depth'),
-        (xs[0], bot, TEAL, 'Karpenter\nbuys spot nodes'),
-    ]
-    ids = []
-    for x, y, colour, label in NODES:
-        xml, i = add_shape(xml, (x, y, bw, bh), 'roundRect', fill='FFFFFF',
-                           line=colour, text=label.replace('\n', '   ·   '),
-                           size=13, colour=INK, adj=12000)
-        ids.append(i)
-
-    gap_x = xs[0] + bw + 0.04, xs[1] + bw + 0.04
-    mid = bh / 2 - 0.16
-    ARROWS = [
-        ('rightArrow', gap_x[0], top + mid, 0.32, 0.32),          # api -> queue
-        ('rightArrow', gap_x[1], top + mid, 0.32, 0.32),          # queue -> worker
-        ('downArrow', xs[2] + bw / 2 - 0.16, top + bh + 0.1, 0.32, bot - top - bh - 0.2),
-        ('downArrow', xs[1] + bw / 2 - 0.16, top + bh + 0.1, 0.32, bot - top - bh - 0.2),
-        ('leftArrow', gap_x[0], bot + mid, 0.32, 0.32),           # KEDA -> Karpenter
-    ]
-    arrows = []
-    for prst, x, y, w, h in ARROWS:
-        xml, i = add_shape(xml, (x, y, w, h), prst, fill=MUTED, line=None)
-        arrows.append(i)
-
-    tail = lines[1] if len(lines) > 1 else None
-    last = None
-    if tail:
-        xml = add_text(xml, (L, BOT - 0.75, R - L, 0.75), [(tail, SZ_CAPTION, MUTED, False)])
-        last = str(next_id(xml) - 1)
-
-    # The request first, then the machinery that reacts to it.
-    order = [[ids[0]], [arrows[0], ids[1]], [arrows[1], ids[2]],
-             [arrows[2], ids[3]], [arrows[3], ids[4]], [arrows[4], ids[5]]]
-    steps, ident = [], 10
-    if lede:
-        step, ident = appear_group([lede], ident); steps.append(step)
-    for group in order:
-        step, ident = appear_group(group, ident)
-        steps.append(step)
-    if last:
-        step, ident = appear_group([last], ident)
-        steps.append(step)
-    return animate(xml, steps, set())
-
-
 DESIGN = {
-    'The loop': d_loop,
-    'What is actually running': d_architecture,
-    'The question the probe was asking': d_verdicts,
-    'Something is asking your container questions': d_questions,
+    'Something is asking your container questions': d_scene,
+    'What is actually running': d_scene,
+    'The question the probe was asking': d_scene,
+    'The loop': d_scene,
     'It is arithmetic, not a bug': d_arithmetic,
     'A readiness probe that passes review': d_review,
     'The fix is three things, and only one is a probe': d_fix,

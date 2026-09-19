@@ -10,6 +10,24 @@ builder never touches markdown.
 """
 import json, re, sys, pathlib, html
 
+# `--scenes` prints the diagram groupings for the layer renderer, so the task
+# script does not carry a second copy of them that can fall out of step with the
+# builder's.
+if '--scenes' in sys.argv:
+    sys.path.insert(0, str(pathlib.Path(__file__).parent))
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'ot', pathlib.Path(__file__).parent / 'onto-template.py')
+    ot = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ot)
+    seen = set()
+    for name, groups in ot.SCENES.values():
+        if name in seen:
+            continue
+        seen.add(name)
+        print(f'{name}|{json.dumps(groups)}')
+    raise SystemExit(0)
+
 src = pathlib.Path('slides/talk.md').read_text()
 # frontmatter of the deck itself
 body = src.split('\n---\n', 1)[1] if src.startswith('---') else src
