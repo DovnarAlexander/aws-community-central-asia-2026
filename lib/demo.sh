@@ -374,10 +374,28 @@ _redraw() {
   _redraw_lines=$(printf '%s\n' "$text" | wc -l | tr -d ' ')
 }
 
+# _drain: throw away keystrokes that are already queued.
+#
+# A clicker press that arrives while the driver is busy sits in the terminal
+# buffer until something reads it, and the next thing to read is usually a
+# timed wait -- which treats it as "move on" and skips the very thing the step
+# exists to show. That is not hypothetical: the committed recording lost all
+# three of incident 2's waits this way, so the cascade was never on screen.
+# Waits therefore start from an empty buffer. `pause` deliberately does not
+# drain: there a queued press is the presenter being ready, and honouring it is
+# correct.
+_drain() {
+  [ -t 0 ] || return 0
+  local junk
+  while IFS= read -rsn1 -t 0.01 junk; do :; done
+  return 0
+}
+
 # watch_pods: a live table in the driver panel, counting down. "Next" cuts the
 # wait short -- useful once the room has clearly got the point.
 watch_pods() { # watch_pods SECONDS [CAPTION] [SELECTOR]
   [ "$FAST" = 1 ] && { sleep "${1:-5}"; return 0; }
+  _drain
   local secs="${1:-30}" cap="${2:-}" sel="${3:-app in (svc,worker)}"
   local start=$SECONDS
   _redraw_lines=0
@@ -406,6 +424,7 @@ $(pods_table "$sel")"
 # zero between them.
 watch_scale() { # watch_scale SECONDS [CAPTION]
   [ "$FAST" = 1 ] && { sleep "${1:-5}"; return 0; }
+  _drain
   local secs="${1:-60}" cap="${2:-}"
   local start=$SECONDS
   _redraw_lines=0

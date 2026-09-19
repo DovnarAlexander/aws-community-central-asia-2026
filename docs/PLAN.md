@@ -410,10 +410,12 @@ against measured timings rather than estimates. The 54 has now reached the deck,
 `pg` lines in `steps/incident2.sh` and Postgres's own introduction in `lib/story.sh`, which
 had all kept saying 57.
 
-The committed recording is not usable evidence for incident 2: it was made by
-fast-forwarding, so `FAST=1` was still set and every `watch_scale` slept five seconds
-instead of waiting. Measured from the cast, incident 1 is 6:00 and incident 2 is 1:20, with
-the cascade missing entirely. Re-record from step 1.1 before measuring anything.
+The committed recording is not usable evidence for incident 2. All three `watch_scale`
+waits were cut short by keystrokes already sitting in the buffer when they opened, so the
+panels drew with their countdowns frozen at 80, 115 and 90 and broke within the second.
+Measured from the cast, incident 1 is 6:00 and incident 2 is 1:20 with the cascade missing
+entirely. `_drain` in `lib/demo.sh` empties the buffer before every wait now; re-record
+before measuring anything.
 
 ### 4. Driver and stage — **done, 2026-08-30**
 Port `demo`, `lib/demo.sh`, `lib/story.sh` and `steps/`, translated and recast. Restructure

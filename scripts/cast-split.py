@@ -50,6 +50,15 @@ ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Za-z0-9]|\x1b[=>]")
 # of the stage at all", which are the same empty result and different problems.
 INTRO = re.compile(r"\n {2}0 \. ")
 
+# A wait that was clicked through leaves its countdown frozen: the panel
+# redraws many times inside one second and the number beside "[->] click to
+# move on" never moves. That happens when keystrokes are already queued when
+# the wait opens -- an impatient second press on the previous prompt -- so the
+# wait eats them instantly and breaks. lib/demo.sh drains the buffer now, but a
+# recording made before that, or one clicked through on purpose, still looks
+# complete while carrying none of the evidence.
+COUNTDOWN = re.compile(r"\. (\d+)s \. \[->\] click to move on")
+
 # The dead-air cap the deck plays with. Both the cut times and the player have
 # to use the same number or the cuts point at the wrong minute -- see read_cast
 # -- so it is written into the manifest and Cast.vue takes it from there rather
@@ -219,6 +228,30 @@ def main():
     for c in cuts:
         length = (c["to"] if c["to"] is not None else total) - c["from"]
         print(f"  {c['step']:5} {int(length // 60)}:{int(length % 60):02d}  {c['title']}")
+
+    # Said after the lengths rather than before them, because the lengths are
+    # the evidence: a fast-forwarded recording looks fine until you notice which
+    # steps are seconds long.
+    printed = strip_ansi_with_map("".join(d for _, kind, d in events if kind == "o"))[0]
+    seen = [int(m.group(1)) for m in COUNTDOWN.finditer(printed)]
+    # Each wait counts down to nothing. One that never gets below most of what
+    # it started with was cut short, and the run of frames at a single number is
+    # how a frozen countdown looks from here.
+    runs, cut = [], 0
+    for v in seen:
+        if runs and runs[-1][0] == v:
+            runs[-1][1] += 1
+        else:
+            runs.append([v, 1])
+    for v, n in runs:
+        if n >= 8 and v > 5:
+            cut += 1
+    if cut:
+        print(f"\n  \033[1;31m!\033[0m {cut} of the waits were cut short: their countdowns "
+              "never moved.")
+        print("    A wait that is clicked through still draws its panel, so the recording")
+        print("    looks complete while the cluster never got far enough to show anything.")
+        print("    Let each one run out, and do not press ahead on the prompt before it.")
 
     # Per-step casts from the days this script wrote files. Nothing references
     # them once the slides ask for steps, and a stale 1.1.cast sitting next to a

@@ -48,7 +48,7 @@ for ch in chunks:
     cur['raw'] += ch
 if cur: slides.append(cur)
 
-def clean(t):
+def clean(t, keep_blanks=False):
     t = re.sub(r'<!--.*?-->', '', t, flags=re.S)
     t = re.sub(r'<[^>]+>', ' ', t)
     t = html.unescape(t)
@@ -59,12 +59,31 @@ def clean(t):
     # that followed them: "10 seconds ." and "every single time ,". The lookahead
     # keeps "then ./demo" intact.
     t = re.sub(r'\s+([.,;:!?])(?=\s|$)', r'\1', t)
+    if keep_blanks:
+        # Notes are a laid-out page: the blank lines between their sections are
+        # what makes them readable in the pane, so they survive here.
+        return '\n'.join(l.strip() for l in t.splitlines())
     return '\n'.join(l.strip() for l in t.splitlines() if l.strip())
+
+# Cut lengths, so a note can say how long its recording runs without anybody
+# keeping the number in step by hand. Re-recording the show moves every one of
+# them; retyping them into talk.md is how a note ends up lying.
+LENGTHS, STEPTITLES = {}, {}
+try:
+    with open('slides/public/casts/full.cuts.json') as fh:
+        man = json.load(fh)
+    for c in man['cuts']:
+        secs = (c['to'] if c['to'] is not None else man['duration']) - c['from']
+        LENGTHS[c['step']] = f'{int(secs // 60)}:{int(secs % 60):02d}'
+        STEPTITLES[c['step']] = c['title']
+except (OSError, KeyError, ValueError):
+    pass
 
 out = []
 for s in slides:
     raw = s['raw']
-    notes = '\n'.join(clean(m) for m in re.findall(r'<!--(.*?)-->', raw, re.S))
+    notes = '\n'.join(clean(m, keep_blanks=True) for m in re.findall(r'<!--(.*?)-->', raw, re.S))
+    notes = re.sub(r'\n{3,}', '\n\n', notes).strip()
     code  = re.findall(r'```(\w*)\s*(?:\{[^}]*\})?\n(.*?)```', raw, re.S)
     step  = re.search(r'step="([\d.]+)"', raw)
     nocode = re.sub(r'```.*?```', '', raw, flags=re.S)
@@ -91,7 +110,9 @@ for s in slides:
         'tables': tables,
         'code': [{'lang': l or 'text', 'text': c.rstrip()} for l, c in code],
         'step': step.group(1) if step else None,
-        'notes': notes,
+        'steptitle': STEPTITLES.get(step.group(1), '') if step else '',
+        'notes': (notes.replace('{len}', LENGTHS.get(step.group(1), '?:??'))
+                  if step else notes),
     })
 json.dump(out, open(sys.argv[1], 'w'), indent=1, ensure_ascii=False)
 print(f"  {len(out)} slides, {sum(1 for s in out if s['step'])} of them a recording")

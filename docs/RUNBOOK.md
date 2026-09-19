@@ -352,14 +352,14 @@ task deck:split             # step boundaries, plus slides ready to paste
 A renumbered or retitled step moves its own cut, which hand-written timecodes would not. Do
 it after a `task smoke` has passed, against the cluster the talk will use.
 
-**Start the show from the top.** `./demo <step>` fast-forwards by replaying every earlier
-step with `FAST=1`, and that flag is what `watch_pods` and `watch_scale` read to decide
-whether to wait: with it on they sleep five seconds instead of holding the counters on
-screen while KEDA and Karpenter do the thing the step exists to show. The recording in
-`slides/public/casts/` was made that way and it shows: incident 1 runs six minutes, incident
-2 runs eighty seconds and never gets to the cascade. Steps 2.2 and 2.3 apply their manifests,
-print their teaching cards, and stop. A recording that starts at step 1.1 and is driven
-through by hand does not have the problem.
+**Let the waits run out, and do not press ahead on the prompt before one.** A clicker press
+that arrives while the driver is busy waits in the terminal buffer, and the next thing to
+read it is the wait itself, which takes it as "move on". The panel still draws, so nothing
+looks wrong: the countdown simply never moves. The committed recording lost all three of
+incident 2's waits that way -- 80, 120 and 90 seconds of cluster, gone -- which is why
+incident 1 runs six minutes and incident 2 runs eighty seconds without ever reaching the
+cascade. `lib/demo.sh` drains the buffer before every wait now, so a new recording does not
+have the problem, and `task deck:split` says so if a countdown ever freezes again.
 
 Before recording the show for real, spend ten seconds on:
 

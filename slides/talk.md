@@ -3,7 +3,7 @@ theme: naviteq-slidev
 title: The probe that killed itself
 titleTemplate: '%s — Naviteq'
 info: |
-  AWS Community Day Central Asia 2026.
+  AWS User Group Central Asia 2026.
   The talk is the terminal; this deck is the fallback and the handout.
 author: Alexander Dovnar
 keywords: kubernetes,probes,liveness,readiness,startup,eks,karpenter,keda,rds,sre
@@ -36,21 +36,18 @@ variant: 2
 
 ## A health check, two autoscalers, and an EC2 bill
 
-Alexander Dovnar · Naviteq · AWS Community Day Central Asia 2026
+Alexander Dovnar · Naviteq · AWS User Group Central Asia 2026
 
 <!--
-WHERE WE ARE · the promise. Nothing is revealed here; the slide is the title.
+WHERE WE ARE
+The promise. Nothing moves on this slide.
 
-"Good morning. This talk is about the six lines in your manifest that almost
-everyone copies from the service next door, and about the two of those lines
-that can take a healthy service down and put the outage on your AWS bill.
+SAY
+"Good morning. This talk is about six lines in your manifest that almost everyone copies from the service next door, and about the two of them that can take a healthy service down and put the outage on your AWS bill.
+Two incidents, both reproduced live on a real EKS cluster. The pods die because the numbers say they should."
 
-Two incidents, both reproduced live on a real EKS cluster. Nothing here is
-staged: the pods die because the numbers say they should."
-
-If the cluster is unavailable, say so now rather than later, and present from
-the recordings: they are full runs of the same show, cut per step, so losing
-step 2.2 costs 2.2 and nothing else.
+IF THE CLUSTER IS DOWN
+Say so now rather than later and present from the recordings. They are full runs of the same show, cut per step, so losing one step costs that step and nothing else.
 -->
 
 ---
@@ -80,22 +77,17 @@ layout: default
 </div>
 
 <!--
-WHERE WE ARE · thirty seconds on who is talking, then straight to the terminal.
-Four presses.
+WHERE WE ARE
+Thirty seconds on who is talking, then straight to the terminal.
 
-[click] photograph and the mark. "I run engineering at Naviteq."
+THE CLICKS
+1. photograph and the mark: "I run engineering at Naviteq."
+2. the role: "And I co-host DevOps Kitchen Talks, seventy-odd episodes of two people arguing about infrastructure."
+3. the credentials: read one, not five. The containers track and the Terragrunt ambassadorship are the two that say why this talk.
+4. the links: "These are all on the QR at the end, so nobody needs to photograph this slide."
 
-[click] the role. "And I co-host DevOps Kitchen Talks, which is seventy-odd
-episodes of two people arguing about infrastructure."
-
-[click] the credentials. Read one, not five. The containers track and the
-Terragrunt ambassadorship are the two that say why this talk and not another.
-
-[click] the links. "These are all on the QR at the end, so nobody needs to
-photograph this slide."
-
-Then: "Every one of the two incidents you are about to see happened to somebody
-I know, and one of them happened to me."
+THEN
+"Both incidents you are about to see happened to somebody I know, and one of them happened to me."
 -->
 
 ---
@@ -110,17 +102,17 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-0
+WHERE WE ARE
+The cast, introduced by the stage itself. Runs {len} and starts on its own; the bar along the bottom is how much is left.
 
-WHERE WE ARE · the cast, introduced by the stage itself. The recording starts
-on its own when the slide arrives; the bar along the bottom is how much is left.
+WHILE IT PLAYS
+- Timur ships the service.
+- Ruslan tunes the numbers.
+- Madina asks what the probe is actually for.
+- Karpenter answers Pending pods by buying machines, and has a credit card.
 
-Timur ships the service. Ruslan tunes the numbers. Madina asks what the probe is
-actually for. Karpenter answers Pending pods by buying machines, and has a
-credit card.
-
-About a minute and a half. Talk over it rather than skipping it: a later step called
-"Madina unhooks the probe" does not land on a room that has never met her.
+DO NOT SKIP IT
+A later step called "Madina unhooks the probe" does not land on a room that has never met her. Talk over it instead.
 -->
 
 ---
@@ -138,28 +130,19 @@ layout: default
 <p class="nq-statement">Of everything that can take a container down (a crash, an OOM, an eviction, a rollout), a probe is the only one that does it <strong>while the process is working perfectly well</strong>.</p>
 
 <!--
-WHERE WE ARE · the one piece of theory that has to come before the first
-failure. Six presses, and the diagram draws itself branch by branch.
+WHERE WE ARE
+The one piece of theory that has to come before the first failure. The diagram draws itself branch by branch.
 
-[click] the opening line. "Something is asking your container questions, and it
-is not a load balancer and not a human. It is kubelet, the agent on every node,
-asking every few seconds, forever, using numbers that came out of your manifest."
+THE CLICKS
+1. the opening line: "Something is asking your container questions, and it is not a load balancer and not a human. It is kubelet, the agent on every node, asking every few seconds, forever, using numbers that came out of your manifest."
+2. kubelet appears: point at it. The only actor in the talk that never changes its behaviour.
+3. startup: "Has it finished booting? While this one runs, the other two are not consulted at all."
+4. liveness: "Is the process alive? A wrong answer restarts the container, and work in flight dies with it."
+5. readiness: "Can it serve right now? A wrong answer only takes the pod out of the Service. It keeps running and comes back by itself."
+6. the closing line: land this one slowly.
 
-[click] kubelet appears. Point at it. This is the only actor in the talk that
-never changes its behaviour.
-
-[click] startup. "Has it finished booting? While this one runs, the other two
-are not consulted at all."
-
-[click] liveness. "Is the process alive? A wrong answer restarts the container,
-and work in flight dies with it."
-
-[click] readiness. "Can it serve right now? A wrong answer only takes the pod
-out of the Service. It keeps running and it comes back by itself."
-
-[click] the line at the bottom, which is the one to land slowly: of everything
-that can take a container down, a probe is the only one that does it while the
-process is working perfectly well.
+THE LINE THAT MATTERS
+Of everything that can take a container down, a probe is the only one that does it while the process is working perfectly well.
 -->
 
 ---
@@ -177,32 +160,18 @@ layout: default
 <p class="nq-note">Three deliberate constraints: <strong>no NAT gateway</strong> (the quiet $32 a month), <strong>spot and small instances</strong> so scaling is visible as node <em>count</em>, and a <strong>non-burstable</strong> RDS class so the failure reproduces on the day instead of running out of CPU credits halfway through.</p>
 
 <!--
-WHERE WE ARE · the cluster, before anything breaks. Eight presses, following a
-request through the system.
+WHERE WE ARE
+The cluster, before anything breaks. Follow a request through it.
 
-[click] the opening line. One queue, two autoscalers on two different signals,
-one database with max_connections pinned low.
-
-[click] the VPC and the cluster. Mention the no-NAT quirk only if somebody asks
-about cost; otherwise keep moving.
-
-[click] the api. "A request lands here."
-
-[click] the queue. "It goes on SQS."
-
-[click] the worker. "A worker picks it up."
-
-[click] the database, and the long line back from the api. "Both of them reach
-the same Postgres. It is capped at sixty connections and RDS reserves six of
-those for itself, so the application gets fifty-four. Remember that number.
-that number."
-
-[click] KEDA and Karpenter. "These two are watching. KEDA reads queue depth,
-Karpenter buys machines for pods that will not fit. Neither of them knows why
-the queue is deep."
-
-[click] the constraints line. Say it once: the cluster is deliberately small so
-the failure is visible, not so the demo is cheap.
+THE CLICKS
+1. the opening line: one queue, two autoscalers on two different signals, one database with max_connections pinned low.
+2. the VPC and the cluster: mention the no-NAT quirk only if somebody asks about cost.
+3. the api: "A request lands here."
+4. the queue: "It goes on SQS."
+5. the worker: "A worker picks it up."
+6. the database, and the long line back from the api: "Both of them reach the same Postgres. It is capped at sixty and RDS keeps six, so the application gets fifty-four. Remember that number."
+7. KEDA and Karpenter: "These two are watching. KEDA reads queue depth, Karpenter buys machines for pods that will not fit. Neither knows why the queue is deep."
+8. the constraints line: say it once: the cluster is deliberately small so the failure is visible.
 -->
 
 ---
@@ -215,10 +184,11 @@ variant: 2
 ## The probe that kills a healthy pod
 
 <!--
-WHERE WE ARE · the first of two. No presses.
+WHERE WE ARE
+The first of two.
 
-"A service that takes ten seconds to start, and a probe copied out of an
-article. Nobody writes a bug."
+SAY
+"A service that takes ten seconds to start, and a probe copied out of an article. Nobody writes a bug."
 -->
 
 ---
@@ -271,38 +241,25 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 </div>
 
 <!--
-WHERE WE ARE · the mechanism, before the cluster demonstrates it. Twelve
-presses; the manifest arrives a line at a time.
+WHERE WE ARE
+The mechanism, before the cluster demonstrates it. The manifest arrives a line at a time.
 
-[click] the opening line.
+THE CLICKS
+1. the opening line
+2. "ten seconds" turns bold: the number the rest of the slide is measured against
+3. the panel
+4. livenessProbe: "This is the whole probe."
+5. the endpoint: "It asks /healthz over HTTP."
+6. initialDelaySeconds: 2: "Wait two seconds before asking anything."
+7. periodSeconds: 1: "Then ask again every second."
+8. timeoutSeconds: 1: "An answer has one second to arrive."
+9. failureThreshold: 3: "Three misses in a row and the pod dies."
+10. the sum flies in: pause here
+11. the sum turns bold: "Two, plus three misses a second apart, is five seconds of patience. The service needs ten. The pod is killed on the fifth second, every single time, and there is no bug anywhere."
+12. the last line
 
-[click] "ten seconds" turns bold. That is the number the rest of the slide is
-measured against.
-
-[click] the panel.
-
-[click] livenessProbe. "This is the whole probe."
-
-[click] the endpoint. "It asks /healthz over HTTP."
-
-[click] initialDelaySeconds: two. "Wait two seconds before asking anything."
-
-[click] periodSeconds: one. "Then ask again every second."
-
-[click] timeoutSeconds: one. "An answer has one second to arrive."
-
-[click] failureThreshold: three. "Three misses in a row and the pod dies."
-
-[click] the sum flies in. Pause here.
-
-[click] the sum turns bold. "Two, plus three misses a second apart, is five
-seconds of patience. The service needs ten. The pod is killed on the fifth
-second, every single time, and there is no bug anywhere: not in the code, not
-in the manifest."
-
-[click] the last line. timeoutSeconds is the half that bites later: an answer at
-1.1 seconds scores the same as no answer at all, and a service gets slow
-exactly when it is busy.
+THE HALF THAT BITES LATER
+timeoutSeconds. An answer at 1.1 seconds scores the same as no answer at all, and a service gets slow exactly when it is busy.
 -->
 
 ---
@@ -317,16 +274,19 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-1.1
+WHERE WE ARE
+The first failure, running. {len}, starts on its own.
 
-WHERE WE ARE · the first failure, running. Starts on its own.
+WHILE IT PLAYS
+- The pod is Pending while Karpenter buys a machine.
+- Then it starts.
+- Then kubelet kills it on the fifth second, and again after the backoff.
 
-Watch the RESTARTS column. The pod is Pending first while Karpenter buys a
-machine, then it starts, then kubelet kills it on the fifth second, and again
-after the backoff.
+WATCH
+The RESTARTS column.
 
-What to say while it runs: nobody touched the code and there is no traffic yet.
-The arithmetic from two slides ago is what killed it.
+SAY OVER IT
+Nobody touched the code and there is no traffic yet. The arithmetic from two slides ago is what killed it.
 -->
 
 ---
@@ -341,19 +301,17 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-1.2 · The number, and the documentation
+WHERE WE ARE
+Ruslan's fix, and the day it stops working. {len}, starts on its own.
 
-WHERE WE ARE · Ruslan's fix, and the day it stops working. Starts on its own.
+WHILE IT PLAYS
+- The number goes up and the CrashLoop stops. Let Ruslan be right for a moment.
+- A feature ships. Boot takes twenty seconds instead of ten.
+- The same manifest kills the pod again.
+- Madina produces the startupProbe: boot gets its own budget and liveness goes back to asking about steady state.
 
-Two halves. First the number goes up and the CrashLoop stops — let Ruslan be
-right for a moment. Then a feature ships, boot takes twenty seconds instead of
-ten, and the same manifest kills the pod again.
-
-The line to land: initialDelaySeconds is a bet that tomorrow looks like today.
-Nobody touched the probe.
-
-The second half is where Madina produces the startupProbe. Boot gets its own
-budget and liveness goes back to asking about steady state.
+THE LINE TO LAND
+initialDelaySeconds is a bet that tomorrow looks like today. Nobody touched the probe.
 -->
 
 ---
@@ -368,18 +326,22 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-1.3
+WHERE WE ARE
+Production config and real traffic. {len}, starts on its own.
 
-WHERE WE ARE · production config and real traffic. Starts on its own.
+WHILE IT PLAYS
+- Three replicas, and /healthz goes to the database through the same pool as /work.
+- The load starts.
+- Ends on the vote.
 
-Three replicas now, and /healthz goes to the database through the same pool as
-/work. Then the load starts.
+WATCH
+The RESTARTS column, and point at it when it moves.
 
-Point at the RESTARTS column when it moves. The service is healthy. It is
-simply busy, and liveness cannot tell busy from dead because it only owns a
-timer.
+SAY OVER IT
+The service is healthy. It is busy, and liveness cannot tell busy from dead because it only owns a timer.
 
-Ends on the vote. Let the room argue and do not answer it.
+DO NOT ANSWER THE VOTE
+Let the room argue.
 -->
 
 ---
@@ -394,17 +356,19 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-1.4 · End of incident 1 -- before and after
+WHERE WE ARE
+The fix, and the same load again. {len}, starts on its own.
 
-WHERE WE ARE · the fix, and the same load again. Starts on its own.
+WHILE IT PLAYS
+- Two changes go in.
+- The same load runs again.
+- A before-and-after table closes it, built from two real measurements.
 
-Two changes, and the list of what was not touched is longer: not the code, not
-the traffic, not the hardware, not the database, and not the readiness probe,
-which stays tight on purpose.
+SAY OVER IT
+The list of what was not touched is longer: not the code, not the traffic, not the hardware, not the database, and not the readiness probe, which stays tight on purpose.
 
-The before-and-after table at the end is built from two real measurements. Read
-the numbers rather than paraphrasing them: p95 is the same. The service did not
-get faster, it stopped shooting at itself.
+READ THE NUMBERS, DO NOT PARAPHRASE
+p95 is the same. The service did not get faster. It stopped shooting at itself.
 -->
 
 ---
@@ -422,28 +386,21 @@ layout: default
 <p class="nq-statement">Which makes <code>timeoutSeconds: 1</code> on a liveness probe <strong>a latency alarm wired to a kill switch</strong>. The load never changed. What took the service down was the health check.</p>
 
 <!--
-WHERE WE ARE · the answer to the vote, and the distinction the whole talk turns
-on. Five presses.
+WHERE WE ARE
+The answer to the vote, and the distinction the whole talk turns on.
 
-[click] the opening line. The same failed check, down two different probes,
-costs two completely different things.
+THE CLICKS
+1. the opening line: the same failed check, down two different probes, costs two completely different things
+2. a pod that is working fine: "Start from a healthy pod. Nothing is wrong with it."
+3. the liveness branch: "Liveness says no, and kubelet kills the container. Work in flight dies, the pool is rebuilt, the cache is cold. Irreversible. The only thing it is for is noticing a process that will never recover."
+4. the readiness branch: "Readiness says no, and the pod leaves the EndpointSlice. It keeps running, no traffic reaches it, and it comes back by itself. Reversible."
+5. the closing line
 
-[click] a pod that is working fine. "Start from a healthy pod. Nothing is wrong
-with it."
+BEFORE THE LAST CLICK
+Ask the room which one they would rather have.
 
-[click] the liveness branch. "Liveness says no, and kubelet kills the
-container. Work in flight dies, the pool is rebuilt, the cache is cold again.
-That is irreversible: the only thing it is for is noticing a process that will
-never recover."
-
-[click] the readiness branch. "Readiness says no, and the pod leaves the
-EndpointSlice. It keeps running, no traffic reaches it, and it comes back by
-itself. That is reversible."
-
-Ask the room which one they would rather have before the last press.
-
-[click] the closing line. timeoutSeconds: 1 on a liveness probe is a latency
-alarm wired to a kill switch.
+THE LINE THAT MATTERS
+timeoutSeconds: 1 on a liveness probe is a latency alarm wired to a kill switch.
 -->
 
 ---
@@ -456,10 +413,11 @@ variant: 3
 ## The probe that buys EC2 instances
 
 <!--
-WHERE WE ARE · the second incident, a month later. No presses.
+WHERE WE ARE
+The second incident, a month later.
 
-"Timur did everything right this time. He read the documentation and wrote the
-probe himself. It passes review, and it takes the whole service down."
+SAY
+"Timur did everything right this time. He read the documentation and wrote the probe himself. It passes review, and it takes the whole service down."
 -->
 
 ---
@@ -510,27 +468,22 @@ rows, err := db.Query(ctx, aggregate)
 </div>
 
 <!--
-WHERE WE ARE · the probe nobody argues with, and what it costs at scale. Nine
-presses.
+WHERE WE ARE
+The probe nobody argues with, and what it costs at scale.
 
-[click] the sentence. "Readiness should verify we can actually read our data."
-Nobody argues with that in a pull request, and that is the problem.
+THE CLICKS
+1. the sentence: "Readiness should verify we can actually read our data." Nobody argues with that in a pull request, and that is the problem.
+2. the panel
+3. readinessProbe
+4. the endpoint
+5. periodSeconds: 2: "Every two seconds, every replica."
+6. the table: walk it left to right. "Three replicas: one and a half scans a second, twelve connections. The database does not notice."
+7. fifty-four flies in
+8. it turns bold: "The terminal will say sixty, because that is what max_connections is set to. RDS keeps six for itself, so fifty-four is what the application can have. At twenty-four replicas the probe alone wants ninety-six."
+9. the closing line
 
-[click] the panel.
-
-[click] readinessProbe. [click] the endpoint. [click] periodSeconds: two.
-"Every two seconds, every replica."
-
-[click] the table. Walk it left to right. "Three replicas: one and a half scans
-a second, twelve connections. The database does not notice."
-
-[click] fifty-four flies in. [click] it turns bold. "The terminal will say
-sixty, because that is what max_connections is set to. RDS keeps six of them
-for itself, so fifty-four is what the application can actually have. At
-twenty-four replicas the probe alone wants ninety-six."
-
-[click] the closing line. The probe that passed review is now a denial of
-service against the database it was checking.
+THE LINE THAT MATTERS
+The probe that passed review is now a denial of service against the database it was checking.
 -->
 
 ---
@@ -546,24 +499,24 @@ layout: default
 <p class="nq-statement">Every turn adds connections to the database that is already the bottleneck, which makes the next turn worse. One step in that circle is <strong>billed by the hour</strong>.</p>
 
 <!--
-WHERE WE ARE · the centre of the talk. Eight presses, and the circle closes on
-the last one.
+WHERE WE ARE
+The centre of the talk. Walk it slowly: each click adds one step and the arrow into it.
 
-Walk it slowly. Each press adds one step and the arrow into it.
+THE CLICKS
+1. the probe asks the database
+2. replicas go NotReady
+3. workers stop consuming SQS
+4. the queue depth grows
+5. KEDA adds workers
+6. Karpenter buys nodes: the only step in the circle with a price tag
+7. the last arrow, and the circle is closed
+8. the closing line
 
-[click] the probe asks the database.
-[click] replicas go NotReady.
-[click] workers stop consuming SQS.
-[click] the queue depth grows.
-[click] KEDA adds workers.
-[click] Karpenter buys nodes — the only step in the circle with a price tag.
-[click] the last arrow, and the circle is closed.
+BEFORE THE LAST CLICK
+Say the thing the slide exists for: nothing in this loop is broken. Every component is doing exactly what it was asked to do.
 
-Now say the thing the slide exists for: nothing in this loop is broken. Every
-component is doing exactly what it was asked to do.
-
-[click] the closing line. Every turn adds connections to the database that is
-already the bottleneck, and one step in that circle is billed by the hour.
+THE LINE THAT MATTERS
+Every turn adds connections to the database that is already the bottleneck, and one step in that circle is billed by the hour.
 -->
 
 ---
@@ -578,16 +531,15 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-2.1
+WHERE WE ARE
+The review that let it through. {len}, starts on its own.
 
-WHERE WE ARE · the review that let it through. Starts on its own.
+WHILE IT PLAYS
+- Madina says nothing. She said it three times in incident 1 and it went nowhere, so this time she writes it down.
+- The connection count on the right is the baseline: twelve of fifty-four, and Postgres does not wake up.
 
-Watch Madina say nothing. She said it three times in the first incident and
-it went nowhere, so this time she writes it down instead.
-
-The connection count on the right is the baseline. Twelve out of fifty-four,
-and Postgres does not even wake up. It passes review, it passes staging, and it
-passes the first week in production.
+SAY OVER IT
+It passes review, it passes staging, and it passes the first week in production.
 -->
 
 ---
@@ -602,20 +554,22 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-2.2 · Black Friday: the queue fills
+WHERE WE ARE
+Black Friday. {len}, starts on its own.
 
-WHERE WE ARE · Black Friday. Starts on its own.
+WHILE IT PLAYS
+- The queue fills.
+- KEDA scales workers from zero.
+- Karpenter buys machines.
 
-The queue fills, KEDA scales workers from zero, Karpenter buys machines. This
-is the system working exactly as designed, and it is worth saying so out loud
-before it stops being true.
+WATCH
+The node counter. It is the number that costs money.
 
-Point at the node counter. It is the number that costs money.
+SAY OVER IT
+This is the system working exactly as designed. Say so out loud before it stops being true.
 
-If you are presenting from the recording rather than the cluster, know that
-this segment is eleven seconds: it applies the manifests and shows the
-connection baseline, and the scale-up is not in it. See the note on the
-recording in docs/RUNBOOK.md.
+IF PRESENTING FROM THE RECORDING
+This cut is short and the scale-up is not in it: the waits were clicked through when the show was recorded. See docs/RUNBOOK.md.
 -->
 
 ---
@@ -630,23 +584,21 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-2.3
+WHERE WE ARE
+The cascade. {len}, starts on its own.
 
-WHERE WE ARE · the cascade. Starts on its own.
+WHILE IT PLAYS
+- The wall arrives at fifty-four connections.
+- Workers come up and cannot reach the database.
+- They do not acknowledge their messages, so the messages come back.
+- The queue gets deeper, so KEDA adds more workers.
+- Ends on the second vote.
 
-The wall arrives at fifty-four connections. Workers come up and cannot reach
-the database, so they do not acknowledge their messages, so the messages come
-back, so the queue gets deeper, so KEDA adds more workers.
+WATCH
+The node count, not the queue. A queue going up under load is expected. A node count going up while nothing is processed is the incident.
 
-The number to point at is the node count, not the queue. A queue going up under
-load is expected. A node count going up while nothing is being processed is the
-incident.
-
-Ends on the second vote.
-
-From the recording this segment is twenty-two seconds and stops after the KEDA
-card, so the cascade itself is not on screen. Narrate it from the loop slide
-instead, which is two slides back and is the better picture of it anyway.
+IF PRESENTING FROM THE RECORDING
+This cut stops after the KEDA card, so the cascade itself is not on screen. Narrate it from the loop slide instead, which is the better picture of it anyway.
 -->
 
 ---
@@ -661,17 +613,19 @@ class: nq-cast-slide nq-cast-full
 </div>
 
 <!--
-2.4 · Madina unhooks the probe
+WHERE WE ARE
+The fix, and the same queue again. {len}, starts on its own.
 
-WHERE WE ARE · the fix, and the same queue again. Starts on its own.
+WHILE IT PLAYS
+- Every worker that comes up goes Ready and stays Ready.
+- The node count does not move.
+- The queue does not go down: two thousand a second go in and twelve workers cannot outrun that.
 
-Before the numbers move, say what to watch for: every worker that comes up
-should go Ready and stay Ready, and the node count should not move. The queue
-will not go down — two thousand a second go in and twelve workers cannot outrun
-that — so watch the other two numbers.
+SAY BEFORE THE NUMBERS MOVE
+Tell the room which two of those three to watch.
 
-Twelve workers, twelve Ready, against twenty-four of which next to none served.
-One probe changed. Nothing else did.
+THE LINE TO CLOSE ON
+Twelve workers, twelve Ready, against twenty-four of which next to none served. One probe changed. Nothing else did.
 -->
 
 ---
@@ -727,23 +681,17 @@ An autoscaler without a ceiling is a way to turn an incident into an invoice.
 <p class="nq-statement mt-8" v-click="4">Twelve workers, twelve Ready, against twenty-four of which next to none served. <strong>One probe changed. Nothing else did.</strong></p>
 
 <!--
-WHERE WE ARE · the answer. Four presses, one per part.
+WHERE WE ARE
+The answer. One click per part.
 
-[click] unhook the probe. "A goroutine refreshes a flag on its own schedule and
-the probe reads the flag. O(1) in replicas instead of O(n), and a stale flag
-still takes the pod out."
+THE CLICKS
+1. unhook the probe: "A goroutine refreshes a flag on its own schedule and the probe reads the flag. O(1) in replicas instead of O(n), and a stale flag still takes the pod out."
+2. budget the pool: "replicas times POOL_MAX stays under max_connections, with room for everything else on that database."
+3. cap the autoscaler: "Twelve, not twenty-four. An autoscaler without a ceiling is a way to turn an incident into an invoice."
+4. the closing line
 
-[click] budget the pool. "replicas times POOL_MAX has to stay under
-max_connections, with room for everything else that connects to that database."
-
-[click] cap the autoscaler. "Twelve, not twenty-four. An autoscaler without a
-ceiling is a way to turn an incident into an invoice."
-
-Then the line that matters: only the first of the three is about probes. The
-other two decide how far the next mistake gets before something stops it.
-
-[click] the closing line. Twelve workers, twelve Ready, against twenty-four of
-which next to none served.
+BEFORE THE LAST CLICK
+Only the first of the three is about probes. The other two decide how far the next mistake gets before something stops it.
 -->
 
 ---
@@ -783,17 +731,16 @@ layout: default
 <p class="nq-statement mt-8"><NqHighlight type="solid" color="primary">If you cannot say what a restart would fix, do not restart.</NqHighlight></p>
 
 <!--
-WHERE WE ARE · what to do on Monday. Three presses. This is a slide to
-photograph, so stop talking and let them.
+WHERE WE ARE
+What to do on Monday. A slide to photograph, so stop talking and let them.
 
-[click] the liveness column. Read the first and the last item; the room can
-read the middle two.
+THE CLICKS
+1. the liveness column: read the first and the last item; the room can read the middle two
+2. the startup column: "Anything slower than a few seconds gets a startupProbe, not a bigger initialDelaySeconds."
+3. the closing line turns bold
 
-[click] the startup column. "Anything slower than a few seconds gets a
-startupProbe, not a bigger initialDelaySeconds."
-
-[click] the closing line turns bold. If you cannot say what a restart would
-fix, do not restart.
+THE LINE THAT MATTERS
+If you cannot say what a restart would fix, do not restart.
 -->
 
 ---
@@ -834,16 +781,16 @@ layout: default
 <p class="nq-statement mt-6">Probes are the only code that can kill a healthy service, and with an autoscaler underneath, bill you for it.</p>
 
 <!--
-WHERE WE ARE · the second half of the checklist. Three presses.
+WHERE WE ARE
+The second half of the checklist.
 
-[click] the readiness column. The first line is the whole rule: can this pod
-serve, never is the shared thing healthy.
+THE CLICKS
+1. the readiness column: the first line is the whole rule: can this pod serve, never is the shared thing healthy
+2. around the probe: the two from incident 2 that are not about probes at all. The retry path is the one people forget.
+3. the closing line turns bold
 
-[click] around the probe. These are the two from incident 2 that are not about
-probes at all, and the retry path is the one people forget.
-
-[click] the closing line turns bold. Probes are the only code that can kill a
-healthy service, and with an autoscaler underneath, bill you for it.
+THE LINE THAT MATTERS
+Probes are the only code that can kill a healthy service, and with an autoscaler underneath, bill you for it.
 -->
 
 ---
@@ -872,11 +819,12 @@ variant: 2
 </div>
 
 <!--
-WHERE WE ARE · the end. No presses. Stop talking and leave the QR up.
+WHERE WE ARE
+The end. Stop talking and leave the QR up.
 
-"Everything you just saw is in that repository: the checklist, the manifests
-with these numbers in them, and the driver that ran the show. The failures
-reproduce: task bootstrap, then ./demo."
+SAY
+"Everything you just saw is in that repository: the checklist, the manifests with these numbers in them, and the driver that ran the show. The failures reproduce: task bootstrap, then ./demo."
 
+THEN
 Leave this slide on screen for questions.
 -->

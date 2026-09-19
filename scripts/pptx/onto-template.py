@@ -79,11 +79,13 @@ def spid_of(sp):
     return m.group(1) if m else None
 
 
-def paragraphs(lines, size=None, color=None, bullet=False, mono=False):
+def paragraphs(lines, size=None, color=None, bullet=False, mono=False, bold=False):
     """<a:p> runs. Styling stays out of the way unless a slide asks for it."""
     out = []
     for line in lines:
         rpr = '<a:rPr lang="en-US" dirty="0"'
+        if bold:
+            rpr += ' b="1"'
         if size:
             rpr += f' sz="{int(size * 100)}"'
         if mono:
@@ -95,6 +97,9 @@ def paragraphs(lines, size=None, color=None, bullet=False, mono=False):
             rpr = rpr.replace('/>', f'><a:solidFill><a:srgbClr val="{color}"/></a:solidFill></a:rPr>')
         ppr = '<a:pPr marL="0" indent="0"><a:buNone/></a:pPr>' if not bullet else ''
         text = (line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+        if not text.strip():
+            out.append(f'<a:p>{ppr}</a:p>')
+            continue
         space = ' xml:space="preserve"' if text != text.strip() else ''
         out.append(f'<a:p>{ppr}<a:r>{rpr}<a:t{space}>{text}</a:t></a:r></a:p>')
     return ''.join(out) or '<a:p/>'
@@ -397,11 +402,96 @@ NOTES_XML = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
              '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>')
 
 
+def press_count(xml):
+    """How many clicks this slide takes, read back out of its own timing."""
+    seq = re.search(r'nodeType="mainSeq"><p:childTnLst>(.*)'
+                    r'</p:childTnLst></p:cTn><p:prevCondLst', xml, re.S)
+    if not seq:
+        return 0
+    body, depth, n, k = seq.group(1), 0, 0, 0
+    while k < len(body):
+        if body.startswith('<p:par>', k):
+            depth += 1
+            k += 7
+            continue
+        if body.startswith('</p:par>', k):
+            depth -= 1
+            if depth == 0:
+                n += 1
+            k += 8
+            continue
+        k += 1
+    # A recording's one step is the video starting itself, which is not a press.
+    return 0 if 'videoFile' in xml else n
+
+
+def stamp_notes(deck, plan, title_of):
+    """Put the position, the title and the real press count atop every note.
+
+    Written after the slides are, so the count is the one PowerPoint will
+    honour rather than one somebody typed into talk.md and then invalidated by
+    adding a bullet.
+    """
+    total = len(plan)
+    for pos, (_, s, slide) in enumerate(plan, 1):
+        rels = deck.read(deck.rels_of(slide))
+        m = re.search(r'Target="\.\./(notesSlides/notesSlide\d+\.xml)"', rels)
+        if not m:
+            continue
+        title = s['title']
+        if not title and s['step']:
+            named = s.get('steptitle', '')
+            title = f"{s['step']} {named}" if named else f"recording {s['step']}"
+
+        head = note_header(pos, total, title or title_of(s), press_count(deck.read(slide)))
+        part = 'ppt/' + m.group(1)
+        xml = deck.read(part)
+        first = re.search(r'(<a:p>.*?</a:p>)', xml, re.S)
+        if first:
+            xml = (xml[:first.start()] + paragraphs([head], bold=True)
+                   + paragraphs(['']) + xml[first.start():])
+            deck.write(part, xml)
+
+
+def note_header(pos, total, title, clicks):
+    """The first line of a note: where you are, and how many presses are left.
+
+    Counted from the deck rather than typed into talk.md, because a hand-written
+    count is wrong the first time a step is added and nobody notices until they
+    are on stage pressing a clicker that has stopped doing anything.
+    """
+    where = f'SLIDE {pos} OF {total}'
+    what = title.upper() if title else 'RECORDING'
+    if clicks == 0:
+        return f'{where} \u00b7 {what} \u00b7 no clicks'
+    if clicks == 1:
+        return f'{where} \u00b7 {what} \u00b7 1 click'
+    return f'{where} \u00b7 {what} \u00b7 {clicks} clicks'
+
+
+# A note is read at a glance, in a small pane, by somebody who is also talking.
+# Its section headings are written in capitals in talk.md and are set in bold
+# here so the eye can find them; the blank lines between sections are kept, and
+# nothing is bulleted. Bulleting every line, which is what this used to do,
+# turns a structured page into one grey list.
+HEADING = re.compile(r'^[A-Z][A-Z \u00b7\u2014,\'&-]{2,40}$')
+
+
+def note_body(text):
+    out = []
+    for line in text.splitlines():
+        if HEADING.match(line.strip()):
+            out.append(paragraphs([line.strip()], bold=True))
+        else:
+            out.append(paragraphs([line.rstrip()]))
+    return ''.join(out) or '<a:p/>'
+
+
 def add_notes(deck, slide, text):
     """A notes part for one slide, with the deck's narration in it."""
     n = int(re.search(r'slide(\d+)\.xml', slide).group(1))
     name = f'notesSlide{n}.xml'
-    body = paragraphs([l for l in text.splitlines() if l.strip()], bullet=True)
+    body = note_body(text)
     os.makedirs(deck.path('ppt', 'notesSlides', '_rels'), exist_ok=True)
     deck.write(f'ppt/notesSlides/{name}', NOTES_XML.format(body=body))
     deck.write(f'ppt/notesSlides/_rels/{name}.rels',
@@ -484,6 +574,7 @@ def main():
     for n, (kind, s, slide) in enumerate(plan, 1):
         fill(deck, work, kind, s, slide, title_of, n)
 
+    stamp_notes(deck, plan, title_of)
     prune_layouts(deck, seen)
 
     if os.path.exists(out):
