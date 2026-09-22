@@ -458,7 +458,14 @@ tasks:
             "$WORK/img" "$NAME" "$GROUPS"
         done 
         printf '\n  \033[1mrecordings\033[0m\n'
-        if [ -d "$WORK/video" ] && [ -z "$(find slides/public/casts/full.cast -newer "$WORK/video" 2>/dev/null)" ]; then
+        # Newer than the recording is not enough: the films are cut by the
+        # manifest and the manifest is cut by the beats, so a beat moved without
+        # the show being re-recorded has to refilm too. It used to not, and the
+        # deck came out with the old boundaries and the new slides.
+        if [ -d "$WORK/video" ] && [ -z "$(find slides/public/casts/full.cast \
+              slides/public/casts/full.cuts.json scripts/pptx/beats.json \
+              scripts/pptx/hold.json scripts/pptx/film.mjs \
+              -newer "$WORK/video" 2>/dev/null)" ]; then
           printf '  already filmed and newer than the recording -- delete %s/video to refilm\n' "$WORK"
         else
           rm -rf "$WORK/video" "$WORK/covers"

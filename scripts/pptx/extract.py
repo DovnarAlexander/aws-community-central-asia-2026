@@ -77,7 +77,9 @@ try:
         secs = (c['to'] if c['to'] is not None else man['duration']) - c['from']
         # A step the deck holds longer than it ran is that much longer on the
         # slide, and the note has to say the number the speaker will watch.
-        secs *= hold.get(c['step'], 1)
+        # A step cut into beats is `1.2.3` and the factor is written against
+        # `1.2`: holding is a property of the step, not of the slide.
+        secs *= hold.get(c['step'], hold.get(c.get('parent'), 1))
         LENGTHS[c['step']] = f'{int(secs // 60)}:{int(secs % 60):02d}'
         STEPTITLES[c['step']] = c['title']
         SECONDS[c['step']] = secs
@@ -161,9 +163,39 @@ for s in slides:
         # the only honest estimate available and the one the speaker controls.
         'seconds': (SECONDS.get(step.group(1), 0) if step
                     else spoken_seconds(notes)),
+        # How long the note takes to SAY, always. For a slide that is a
+        # recording this is the number that matters and the only one nothing
+        # else was checking: the film runs for as long as it runs whatever is
+        # written underneath it, so a note too long for its own slide is a
+        # speaker talking over the next one. It goes in the note header, and
+        # the summary below says which slides do not fit.
+        'speech': spoken_seconds(notes),
     })
 json.dump(out, open(sys.argv[1], 'w'), indent=1, ensure_ascii=False)
 print(f"  {len(out)} slides, {sum(1 for s in out if s['step'])} of them a recording")
 for i, s in enumerate(out, 1):
     tag = f"cast {s['step']}" if s['step'] else (s['title'][:46] or s['layout'])
     print(f"   {i:>2}  {s['layout']:<8} {tag}")
+
+# ── does the talking fit the film ────────────────────────────────────────────
+# A recording plays for as long as it plays. Everything else on the slide is
+# paced by the speaker, so it cannot be too long for itself; a recording can,
+# and when it is, the speaker is still on this slide's words while the next
+# slide's film is running. FIT is how much of a film may be talking: the rest is
+# the room reading the screen, which is what the screen is for.
+FIT = float(os.environ.get('TALK_FIT', 0.9))
+tight = []
+for i, s in enumerate(out, 1):
+    if not s['step'] or not s['seconds']:
+        continue
+    if s['speech'] > s['seconds'] * FIT:
+        tight.append((i, s['step'], s['speech'], s['seconds']))
+if tight:
+    print(f"\n  \033[1;31m!\033[0m {len(tight)} recordings have more to say than "
+          f"they have time to say it in:", file=sys.stderr)
+    for i, step, said, runs in tight:
+        over = said - runs * FIT
+        print(f"    slide {i:>2}  {step:<7} film {runs:5.0f}s  "
+              f"notes {said:5.0f}s  {over:+.0f}s over", file=sys.stderr)
+    print(f"    Cut words, or move a beat in scripts/pptx/beats.json so the "
+          f"film has longer.", file=sys.stderr)
