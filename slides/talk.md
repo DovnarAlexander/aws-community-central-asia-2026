@@ -39,13 +39,9 @@ variant: 2
 Alexander Dovnar · Naviteq · AWS User Group Central Asia 2026
 
 <!--
-"Good morning. This talk is about six lines in your YAML file."
+"Good evening. I'm really happy to be there and thanks for inviting me :) This talk is about six lines in your YAML file."
 
 "Almost everyone copies them from the service next door. Two of them can kill a healthy service and put the outage on your AWS bill."
-
-"Two stories. Both of them really ran on a real cluster. The pods die because the numbers say they should."
-
-[if the cluster is down, say it now and play the recordings]
 -->
 
 ---
@@ -75,11 +71,13 @@ layout: default
 </div>
 
 <!--
-1 "I run engineering at Naviteq."
+Let's start with some short self-introduction :)
 
-2 "And I co-host DevOps Kitchen Talks -- seventy-odd episodes of two people arguing about infrastructure."
+1 "I run engineering at Naviteq as the CTO. We do DevOps services for variety of companies mostly from Israel."
 
-3 "AWS Community Builder on the containers track, and a Terragrunt ambassador. Which is more or less why this talk exists."
+2 "And I’m the co-host  and “named” CTO of DevOps Kitchen Talks podcast where we discuss DevOps topics and argue about AI 
+
+3 "AWS Community Builder on the containers track, and a Terragrunt ambassador. Which is more or less why this talk exists.” Also last year we released with my friend the book with Packt called “Cracking the Kubernetes interview"
 
 4 "These are all on the QR at the end, so nobody needs to photograph this slide."
 
@@ -93,36 +91,41 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="0" fit="both" />
+    <Cast src="/casts/full.cast" step="0.1" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"This is the terminal the whole talk lives in. A real cluster, a real database, and the failures are real too."
 
-[the boot, then the title card]
+"On call today. Timur writes the backend. His service takes ten seconds to start. He copied his probe from a blog post, and it is green, so he thinks it is right."
 
-[the cast arrives one at a time. Introduce them as they land]
+"Ruslan runs the infrastructure. Every problem is a number in a YAML file, and that has always worked before today."
 
-"Timur writes the backend. His service takes ten seconds to start. He copied his probe from a blog post, and it is green, so he thinks it is right."
+"Madina is the intern. She has read the documentation. Nobody asks her for a while."
 
-"Ruslan runs the infrastructure. For him every problem is a number in a YAML file. That has always worked before today."
+CLICK CARRIES THE RECORDING ON
+-->
 
-"Madina is the intern. She has read the docs. Nobody asks her for a while."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"Then the machines. kubelet does not read your code. It reads your YAML and pulls the trigger."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="0.2" fit="both" />
+  </div>
+</div>
 
-"Postgres has two CPUs and fifty-four connections to give."
+<!--
+"Then the machines. kubelet does not read your code. It reads your manifest, and pulls the trigger."
 
-"KEDA adds workers when the queue is deep. It has no other ideas."
+"Postgres has two CPUs and fifty-four connections to give. KEDA adds workers when the queue is deep, and has no other ideas. Karpenter buys machines when pods do not fit. That one has a credit card."
 
-"And Karpenter buys machines when pods do not fit. That one has a credit card."
+"Seven of them, and the two that matter are not people."
 
-[click for the card]
-
-"Seven of them. The two that matter are not people."
-
-[do not skip this slide. Madina unhooks the probe later, and that does not land on a room that has never met her]
+CLICK MOVES ON
 -->
 
 ---
@@ -140,8 +143,9 @@ layout: default
 <p class="nq-statement">Of everything that can take a container down (a crash, an OOM, an eviction, a rollout), a probe is the only one that does it <strong>while the process is working perfectly well</strong>.</p>
 
 <!--
-1 "Something asks your container questions. It is not a load balancer. It is not a person."
+Before starting anything, let's try to do some recap about things we about the k8s about Probes.
 
+1 "Something asks your container questions. It is not a load balancer. It is not a person."
 "It is kubelet. It runs on every node. It asks every few seconds, forever, using numbers from your YAML."
 
 2 "That one. It is the only thing in this talk that never changes how it behaves."
@@ -191,6 +195,9 @@ layout: default
 "Neither of them knows why the queue is deep."
 
 8 "The cluster is small on purpose, so you can see the node count grow on screen."
+
+
+++ small instances + small nodes
 
 [the no-NAT saving only if somebody asks about cost]
 -->
@@ -258,7 +265,7 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 </div>
 
 <!--
-1 "Every number here looks fine on its own."
+1 "Every number in YAML looks fine on its own."
 
 2 "The service warms up for ten seconds. Keep that number. Everything else is measured against it."
 
@@ -280,7 +287,7 @@ A <code>startupProbe</code> gives boot its own budget instead, and while it runs
 
 11 "Two seconds, plus three misses one second apart. Five seconds of patience."
 
-"The service needs ten. So the pod dies on the fifth second, every time. There is no bug anywhere."
+"The service needs ten. So the pod will die on the fifth second, every time. There is no bug anywhere in the code."
 
 12 "People fix this by making initialDelaySeconds bigger. That works until the day the start gets slower."
 
@@ -296,36 +303,14 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="1.1" fit="both" />
+    <Cast src="/casts/full.cast" step="1.1.1" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"Timur says the service is done. Ten seconds to start: it warms a cache and opens a pool. Ruslan asks about the probe."
 
-"Timur says the service is ready. Ten seconds to start: it warms a cache and opens a pool."
-
-"Ruslan asks if he has a probe. He copied one from an article, it was right there in the example."
-
-"Madina asks for the numbers. She is still adding them up when Ruslan ships it."
-
-[the YAML, then the apply. The pod is Pending, so Karpenter goes shopping]
-
-[Madina's card stays up for the whole wait. Read the four numbers off it]
-
-"Two seconds before the first question. One second between questions. One second to answer. Three misses and the pod dies."
-
-"That is five seconds of patience against a ten second start."
-
-"And kubelet is the one asking. Not a load balancer, not a person, not your code."
-
-[the node arrives, the pod starts]
-
-"kubelet knocks at two seconds. Timur says it is still warming up. That answer is not in the YAML."
-
-"Count with me. Watch the RESTARTS column."
-
-"Nobody touched the code. There is no traffic yet. Simple maths killed the pod."
+CLICK CARRIES THE RECORDING ON
 -->
 
 ---
@@ -335,48 +320,119 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="1.2" fit="both" />
+    <Cast src="/casts/full.cast" step="1.1.2" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"He copied one out of an article. Madina asks for the numbers and starts adding them up, and Ruslan ships it before she finishes."
 
-"Ruslan has seen this a hundred times. One line fixes it: the one with the number in it."
+"The pod is Pending. There is nowhere to put it, so Karpenter goes shopping."
 
-"initialDelaySeconds goes from two to twelve. Twelve is more than ten, so he is done."
+"Her card stays up for the whole wait. Two seconds before the first question. One second between questions. One second to answer. Three misses and the pod dies."
+
+"Five seconds of patience against a ten second start."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.1.3" fit="both" />
+  </div>
+</div>
+
+<!--
+"kubelet knocks at two seconds. Timur says it is still warming up. That answer is not in the manifest."
+
+"Watch the RESTARTS column. Nobody touched the code, and there is no traffic."
+
+CLICK MOVES ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.2.1" fit="both" />
+  </div>
+</div>
+
+<!--
+"Ruslan has seen this a hundred times. One line fixes it: initialDelaySeconds goes from two to twelve. Twelve is more than ten, so he is done."
 
 "Madina asks what happens if the start gets slower. Ruslan asks why it would."
 
-[the apply, and the pod comes up green]
+CLICK CARRIES THE RECORDING ON
+-->
 
-"It works. Madina's point is that it works because nothing changed, not because the number is right."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-[click. A week passes, and Timur ships a feature]
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.2.2" fit="both" />
+  </div>
+</div>
 
-"The catalogue is loaded once at boot now, instead of on every request. Requests got twice as fast, and boot pays for it."
+<!--
+"Green. It works because nothing changed, not because the number is right."
 
-"Warmup goes from ten seconds to twenty."
+"A week later Timur ships a feature. The catalogue is loaded once at boot now, not on every request. Requests got twice as fast, and boot pays for it: warmup goes from ten seconds to twenty."
 
-"Nobody touched the probe. The service grew under it."
+CLICK CARRIES THE RECORDING ON
+-->
 
-"Two numbers are racing. Patience runs out at fifteen seconds. The service is ready at twenty."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"Same YAML, slower machine. initialDelaySeconds is a bet that tomorrow looks like today."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.2.3" fit="both" />
+  </div>
+</div>
 
-"A cold cache. A busy neighbour. More data. One more step at boot. None of those touch your YAML, and every one of them moves the start."
+<!--
+"Nobody touched the probe. The service grew under it. Patience runs out at fifteen seconds. The service is ready at twenty."
 
+"A cold cache. A busy neighbour. More data. None of those touch your YAML, and every one of them moves the start."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.2.4" fit="both" />
+  </div>
+</div>
+
+<!--
 "Every other number in a probe reacts to something. This one only counts."
 
-"Madina's answer is the startupProbe. She read all the docs."
+"Madina's answer is the startupProbe. While startup runs, nobody asks the other two. Boot gets its own time, two minutes if it wants, and liveness goes back to what it was for."
 
-[the diff, then the apply. Her card. Read the three questions off it]
-
-"While startup runs, nobody asks the other two. Boot gets its own time, two minutes if it wants."
-
-"And liveness goes back to what it was for."
+"Her card has the three questions on it. Has it finished booting. Is it alive. Can it serve right now. Three questions, three probes, and they are not interchangeable."
 
 "Same slow start, and RESTARTS is still zero."
+
+CLICK MOVES ON
 -->
 
 ---
@@ -386,46 +442,20 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="1.3" fit="both" />
+    <Cast src="/casts/full.cast" step="1.3.1" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"The start is fixed. Timur rolls out the production settings: three replicas, and real work against the database."
 
-"The start is fixed. Now Timur rolls out the production settings: three replicas, and real work against the database."
+"He also makes /healthz honest. It queries the database now, like the real work does. A health check that checks nothing is not a health check."
 
-"He also makes /healthz honest. It queries the database now, same as the real work. A health check that checks nothing is not a health check."
+"Madina points out that /healthz reaches the database through the same pool as the real work. A pool of four. They ship it."
 
-"Ruslan asks if he is touching liveness. Why would he, it is green."
+"Her card is the difference. Liveness fails, the container is killed. Readiness fails, the pod only leaves the Service."
 
-"Madina points out that /healthz now reaches the database through the same pool as the real work. Pool of four, small query. Ship it."
-
-[the diff, then the apply. Her card before it ships. Read the two answers off it]
-
-"Liveness fails, and kubelet kills the container. The work dies. The pool is rebuilt. The cache is cold again."
-
-"Readiness fails, and the pod just leaves the Service. It keeps running and comes back on its own."
-
-"A busy pod is not a dead pod. Slow is a readiness question."
-
-"Liveness has one job: spot a process that will never recover."
-
-[three replicas Ready, one per node. Click, and the traffic arrives]
-
-"The service is healthy. It is just busy."
-
-"The pool fills with real work, and /healthz waits in the same line."
-
-"kubelet gets no answer. Three times. It kills it."
-
-"Watch the RESTARTS column. Timur says it is alive, just busy. kubelet cannot tell busy from dead, because all it has is a timer."
-
-"Liveness should ask if the process is alive. It asked how fast it answers."
-
-[the vote. Timur who copied the probe, Ruslan who left liveness alone, or kubelet who pulled the trigger]
-
-[do not answer it. Let them argue]
+CLICK CARRIES THE RECORDING ON
 -->
 
 ---
@@ -435,42 +465,151 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="1.4" fit="both" />
+    <Cast src="/casts/full.cast" step="1.3.2" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"Three replicas Ready, one per node. A busy pod is not a dead pod, and slow is a readiness question."
 
-"Madina says none of the three. It was the wrong question."
+CLICK CARRIES THE RECORDING ON
+-->
 
-"Liveness answers one thing: is the process alive. You do not go to a database for that."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"Give it more time to answer and allow more misses."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.3.3" fit="both" />
+  </div>
+</div>
 
-"What takes a busy pod out of rotation is readiness, and that one is allowed to be nervous."
+<!--
+"The traffic arrives. The service is healthy, it is just busy. The pool fills with real work, and /healthz waits in the same line as everything else."
 
-"And /healthz goes back to local, so the check never leaves the process. Whether the database answers is a readiness question, and readiness already asks it."
+"kubelet gets no answer."
 
-[the diff, then the apply. Her card. Read what changed off it]
+CLICK CARRIES THE RECORDING ON
+-->
 
-"One question every ten seconds instead of five. Three seconds to answer instead of one. Five misses instead of three."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"Fifty seconds of patience before a kill."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.3.4" fit="both" />
+  </div>
+</div>
+
+<!--
+"Three times in a row, and it kills the container. Watch the RESTARTS column."
+
+"Timur says it is alive, just busy. kubelet cannot tell busy from dead, because all it has is a timer."
+
+"Liveness should ask whether the process is alive. This one asked how fast it answers, and the load did the rest."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.3.5" fit="both" />
+  </div>
+</div>
+
+<!--
+"Here is what kubelet actually said. Liveness probe failed, three times, and then it killed it."
+
+"The traffic never changed."
+
+CLICK MOVES ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.4.1" fit="both" />
+  </div>
+</div>
+
+<!--
+"Madina says none of the three. It was the wrong question. Liveness answers one thing: is the process alive. Do not ask a database."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.4.2" fit="both" />
+  </div>
+</div>
+
+<!--
+"Give it more time to answer, and allow more misses. What takes a busy pod out of rotation is readiness, and that one is allowed to be nervous."
+
+"And /healthz goes back to local, so the check never leaves the process."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.4.3" fit="both" />
+  </div>
+</div>
+
+<!--
+"One question every ten seconds instead of five. Three seconds to answer instead of one. Five misses instead of three. Fifty seconds of patience before a kill."
 
 "The list of what did not change is longer. Not the code. Not the traffic. Not the machines. Not the database."
 
 "And not the readiness probe, which stays quick on purpose. Taking a busy replica out of rotation is exactly its job."
 
-[click. Same load, same service, same machines]
-
 "Same three replicas, same three hundred requests a second, same column. This time it should not move at all."
 
-[the before and after table. read the numbers, do not use your own words]
+CLICK CARRIES THE RECORDING ON
+-->
 
-"p95 is the same as before. The service did not get faster. It stopped shooting at itself."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="1.4.4" fit="both" />
+  </div>
+</div>
+
+<!--
+"p95 is the same. The service did not get faster. It stopped shooting at itself."
 
 "The traffic never changed. The health check took the service down."
+
+CLICK MOVES ON
 -->
 
 ---
@@ -634,38 +773,39 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="2.1" fit="both" />
+    <Cast src="/casts/full.cast" step="2.1.1" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"A month later. Timur did not copy this one. He read the docs and wrote it himself: every readiness call queries the database to check the data is really there."
 
-"In the first story one pod killed itself. In this one every replica leaves the load balancer at once, and the autoscalers try to help."
+"Ruslan approves it, because it checks something real."
 
-[a month has passed]
+CLICK CARRIES THE RECORDING ON
+-->
 
-"Timur did not copy this one. He read the docs and wrote it himself. Every readiness call queries the database to check the data is really there."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"Ruslan approves it. It checks something real, which is the right thing to do."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.1.2" fit="both" />
+  </div>
+</div>
 
-"Madina says nothing. It passed review."
-
-"She said it out loud three times in the first story. This time she writes it down."
-
-[her card. Read it out]
+<!--
+"Madina says nothing. It passed review. She said it out loud three times in the first story. This time she writes it down."
 
 "The Service does not send traffic to pods. It sends it to a list of addresses, and readiness puts a pod on that list or takes it off."
 
-"One pod NotReady, and the rest carry the load. Every pod NotReady, and the list is empty. No error, no traffic, no pods."
+"One pod NotReady, and the rest carry the load. Every pod NotReady, and the list is empty. No error, no traffic."
 
-"So a readiness probe does not break one replica. It breaks every replica asking the same question."
+"A readiness probe does not break one replica. It breaks every replica asking the same question."
 
-[the connection count]
-
-"Three replicas, twelve connections out of fifty-four. Postgres did not even wake up."
-
-"All green, no incidents. While there are three replicas."
+CLICK CARRIES THE RECORDING ON
 -->
 
 ---
@@ -675,40 +815,73 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="2.2" fit="both" />
+    <Cast src="/casts/full.cast" step="2.1.3" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"Three replicas, twelve connections out of fifty-four. Postgres did not even wake up. All green, while there are three replicas."
 
-"Black Friday. The work arrives as a queue, which is what this system was built for."
+CLICK MOVES ON
+-->
 
-[the KEDA config: min zero, max twenty-four, watching the queue]
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"KEDA watches the queue. Zero workers right now, because there is nothing to do."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.2.1" fit="both" />
+  </div>
+</div>
 
+<!--
+"Black Friday. The work arrives as a queue, which is what this system was built for. KEDA is watching it, with zero workers."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.2.2" fit="both" />
+  </div>
+</div>
+
+<!--
 "Then two thousand messages a second start going in."
 
-[the card, while KEDA thinks. Read the three numbers off it]
+"Her card has the three numbers KEDA works from. It asks the queue how deep it is every five seconds. It allows twenty messages per worker. And it will go up to twenty-four workers, which is the limit and the only thing stopping it."
 
-"It asks the queue how deep it is every five seconds. It allows twenty messages per worker. And it will go up to twenty-four workers, which is the limit and the only thing stopping it."
+"Nothing in that formula knows why the queue is deep. A queue that grows because the workers are stuck looks exactly like a queue that grows because there is work."
 
-"It starts from zero workers, so it scales up from nothing."
+CLICK CARRIES THE RECORDING ON
+-->
 
-"Nothing in that formula knows why the queue is deep."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"A queue that grows because the workers are stuck looks exactly like a queue that grows because there is a lot of work."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.2.3" fit="both" />
+  </div>
+</div>
 
+<!--
 "KEDA adds workers. The workers do not fit, so Karpenter buys machines."
 
-[the node list]
-
-"Queue up, workers up, nodes up. Watch the node counter. That is the number that costs money."
+"Watch the node counter on the right. Queue up, workers up, nodes up. That is the number that costs money, and it is the only step in this circle with a price on it."
 
 "Ruslan says this is the system working. Look at it scale."
 
-"Madina says look at what each new worker does before it processes anything."
+CLICK CARRIES THE RECORDING ON
 -->
 
 ---
@@ -718,62 +891,33 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="2.3" fit="both" />
+    <Cast src="/casts/full.cast" step="2.2.4" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"Madina says look at what each new worker does before it processes anything. Every one of them opens a pool, and every one of them asks the database the same question the probe asks."
 
-"Madina does the maths out loud."
+CLICK MOVES ON
+-->
 
-"Every replica opens its own pool, four connections each. And every replica scans two million rows every two seconds, because that is what its readiness probe does."
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.3.1" fit="both" />
+  </div>
+</div>
+
+<!--
+"So they ask the database. Every replica opens its own pool, four connections each, and scans two million rows every two seconds, because that is what its readiness probe does."
 
 "Ruslan calls it a health check. It is a health check times the number of replicas."
 
-"With three replicas it was a third of a CPU. KEDA is allowed twenty-four."
-
-"Twenty-four workers at four connections is ninety-six. Postgres has fifty-four, and two CPUs, and they are all ours now."
-
-[the connection states, then the worker logs: too many connections]
-
-"The pods are up, and they are not Ready."
-
-"A worker that cannot reach the database does not tell the queue it is done. So the message comes back, and the queue gets deeper."
-
-"KEDA sees a deeper queue and adds workers."
-
-"Postgres is refusing new connections now. Everyone who has one is holding it."
-
-"Karpenter sees more pods that do not fit and keeps buying, because nobody told it to stop."
-
-"That is the loop."
-
-[her card stays up while the numbers move. Read it out]
-
-"The probe asks the database, so the replicas go NotReady, so the workers stop taking messages."
-
-"The queue gets deeper, so KEDA adds workers, so more nodes are bought. And every one of them asks the database the same question."
-
-"Every turn adds connections to the database that is already the slow part, and makes the next turn worse."
-
-"Nothing here is broken. Every part is doing exactly what we asked it to do."
-
-"The only step with a price on it is the bottom left."
-
-"Throughput is zero, and the nodes are still going up."
-
-"Watch the node count, not the queue. A queue going up under load is normal. A node count going up while nothing is processed is the incident."
-
-[the endpoint list]
-
-"No addresses left in the Service. Not one."
-
-"Scaling did not save the service. Scaling took it down, and it bought hardware to do it."
-
-[the vote: raise the worker limit, restart the database, or give the probe more time]
-
-[this cut stops after the KEDA card, so tell the rest off the loop slide]
+CLICK CARRIES THE RECORDING ON
 -->
 
 ---
@@ -783,58 +927,175 @@ class: nq-cast-slide nq-cast-full
 
 <div class="nq-fig">
   <div class="nq-cast-frame">
-    <Cast src="/casts/full.cast" step="2.4" fit="both" />
+    <Cast src="/casts/full.cast" step="2.3.2" fit="both" />
   </div>
 </div>
 
 <!--
-[{len}, starts on its own]
+"With three replicas it was a third of a CPU. KEDA is allowed twenty-four. Twenty-four workers at four connections is ninety-six. Postgres has fifty-four, and two CPUs, and they are all ours now."
 
+"The worker logs say it plainly. Too many connections. The remaining slots are reserved for somebody else."
+
+"The pods are up, and they are not Ready. A worker that cannot reach the database never tells the queue it is done, so the message comes back and the queue gets deeper."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.3.3" fit="both" />
+  </div>
+</div>
+
+<!--
+"KEDA sees a deeper queue and adds workers. Postgres is refusing new connections now, and everyone who has one is holding it. Karpenter sees more pods that do not fit and keeps buying, because nobody told it to stop."
+
+"That is the loop, and it is on the screen now."
+
+"The probe asks the database, so the replicas go NotReady, so the workers stop taking messages. The queue gets deeper, so KEDA adds workers, so more nodes are bought. And every new one asks the database the same question."
+
+"Every turn adds connections to the database that is already the slow part, and makes the next turn worse."
+
+"Nothing here is broken. Every part is doing exactly what we asked it to do. The probe checks the data. KEDA drains the queue. Karpenter finds room for pods. Not one of them is wrong on its own."
+
+"Watch the node count, not the queue. A queue going up under load is normal. A node count going up while nothing is processed at all is the incident."
+
+"Throughput is zero. The nodes are still going up, and the bill goes up with them."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.3.4" fit="both" />
+  </div>
+</div>
+
+<!--
+"And here is the Service. No addresses left in it. Not one."
+
+"Scaling did not save the service. Scaling took it down, and it bought hardware to do it."
+
+"So the vote. Raise the worker limit, restart the database, or give the probe more time."
+
+CLICK MOVES ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.4.1" fit="both" />
+  </div>
+</div>
+
+<!--
 "None of the three. All of them add work to the database, and the database is where everyone is already stuck. The first one also buys more machines."
 
-"Madina takes the probe off the database."
+"Madina takes the probe off the database instead."
 
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.4.2" fit="both" />
+  </div>
+</div>
+
+<!--
 "A small background job asks the database a simple question every two seconds and saves the answer in a flag. The probe reads the flag. That is all."
 
-"Timur asks what happens if the database really does go down. The flag goes old, and the pod honestly leaves the load balancer."
-
-"Ruslan asks if that means all twenty-four at once. No: one at a time, as each flag expires. And the database gets no extra queries at all."
+"If the database really does go down, the flag goes old and the pod leaves the load balancer. Not all twenty-four at once: one at a time, as each flag expires."
 
 "The probe now costs the same with twenty-four replicas or two hundred and forty."
 
-"Two more things. The pool is now three connections, not four, so the total stays under the limit."
+"Two more things The pool is three connections instead of four, so the total stays under the limit. And KEDA gets a ceiling."
 
-"And KEDA gets a ceiling. An autoscaler without one turns an incident into a bill."
+CLICK CARRIES THE RECORDING ON
+-->
 
-[the diff, then the apply. Her card. Read the three parts off it]
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"One: the probe reads a flag, not the database. Same cost with any number of replicas, and an old flag still takes the pod out."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.4.3" fit="both" />
+  </div>
+</div>
 
-"Two: replicas times pool size must stay under the connection limit, with room for everything else."
+<!--
+"Only the first of the three is about probes. The other two decide how far the next mistake goes before something stops it."
 
-"Three: the worker limit is twelve, not twenty-four."
+"Same queue, same database, same cluster. Two things to watch. Every worker should go Ready and stay Ready, and the node count should not move."
 
-"Only the first one is about probes. The other two decide how far the next mistake goes before something stops it."
+CLICK CARRIES THE RECORDING ON
+-->
 
-[click. Same queue, same database, same cluster]
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
 
-"Two things to watch. Every worker that comes up should go Ready and stay Ready. And the node count should not move."
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.4.4" fit="both" />
+  </div>
+</div>
 
-"The queue will not go down. Two thousand a second go in, and twelve workers cannot beat that. Watch the other two numbers."
+<!--
+"Twelve workers, twelve Ready. A minute ago there were twenty-four, and almost none of them served."
 
-[the connection count, then the before and after table. Read the numbers off it]
-
-"Forty-five connections, almost nothing active. Same load, same target, different probe."
-
-"Twelve workers, twelve Ready. A minute ago there were twenty-four and almost none of them served."
+"The queue will not go down. Two thousand a second go in, and twelve workers cannot beat that. Watch the other two numbers instead."
 
 "Those twenty-four took messages and handed every one of them back. These twelve finish what they take."
 
-"One probe changed. Nothing else did."
+"And nothing new was bought. The node count has not moved. Karpenter gives the idle machines back a few minutes later. It was never the problem: it did exactly what we asked."
 
-"And nothing new was bought. Karpenter gives the idle machines back a few minutes later. It was never the problem. It did what we asked."
+"One probe changed. Not the code, not the traffic, not the database, not the machines."
+
+CLICK CARRIES THE RECORDING ON
+-->
+
+---
+layout: default
+class: nq-cast-slide nq-cast-full
+---
+
+<div class="nq-fig">
+  <div class="nq-cast-frame">
+    <Cast src="/casts/full.cast" step="2.4.5" fit="both" />
+  </div>
+</div>
+
+<!--
+"Forty-five connections, and almost nothing active. Same load, same target, different probe."
+
+"That is the whole of incident two, and the fix was six lines of YAML and one small background job."
 
 "Readiness means: can this pod serve. Not: is the shared database alive."
+
+CLICK MOVES ON
 -->
 
 ---

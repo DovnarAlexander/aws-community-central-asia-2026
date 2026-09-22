@@ -27,6 +27,7 @@ it seeks, in single-digit milliseconds, and the step opens with the whole stage
 on it.
 """
 
+import bisect
 import json
 import pathlib
 import re
@@ -60,6 +61,20 @@ COUNTDOWN = re.compile(r"\. (\d+)s \. \[->\] click to move on"
 # -- so it is written into the manifest and Cast.vue takes it from there rather
 # than carrying its own copy.
 IDLE_TIME_LIMIT = 2.0
+
+# Where a step is cut into more than one slide. The file says what a beat is and
+# why it is written as a marker rather than a time; this only has to find it.
+# Missing is not an error -- a deck with no beats file is the one-slide-per-step
+# deck this script wrote before.
+BEATS = pathlib.Path(__file__).resolve().parent / "pptx" / "beats.json"
+
+# The driver's click prompt, with its label. `ask` prints one of these and then
+# blocks on a keypress, so the frame it draws is the frame the recording stands
+# on until somebody presses the clicker -- which makes it the one place a cut
+# costs nothing to watch. The watch panel's own "[->] skips" tail is not a
+# prompt and is deliberately not matched: it is redrawn every second while the
+# show carries on underneath it.
+PROMPT = re.compile(r"\[->\] (click [^\r\n.%]{0,60})")
 
 
 def is_dark(bg):
@@ -127,40 +142,149 @@ def strip_ansi_with_map(text):
     return "".join(out), index
 
 
-def find_steps(events):
+class Stream:
+    """Everything the recording printed, as one string you can ask times of.
+
+    A match anywhere in it can be turned back into the moment it appeared on
+    screen. Built once and handed to everything that looks for something --
+    step headers, click prompts, a pod going CrashLoopBackOff -- because
+    rebuilding it is three megabytes of string work each time.
+    """
+
+    def __init__(self, events):
+        chunks, bounds, running = [], [], 0
+        self.times = []
+        for t, kind, data in events:
+            if kind != "o":
+                continue
+            chunks.append(data)
+            running += len(data)
+            bounds.append(running)
+            self.times.append(t)
+        self.text, self.index = strip_ansi_with_map("".join(chunks))
+        self._bounds = bounds
+
+    def time_at(self, offset):
+        """When the byte at this offset in the stripped text was printed."""
+        if not self._bounds:
+            return 0.0
+        i = bisect.bisect_right(self._bounds, offset)
+        return self.times[min(i, len(self.times) - 1)]
+
+    def at(self, match_start):
+        """When a match in the stripped text appeared."""
+        return self.time_at(self.index[match_start])
+
+    def previous_write(self, when):
+        """The last moment anything was drawn before `when`.
+
+        What a cut is backed up onto, so the slide that carries on opens on the
+        frame the slide before it ended on rather than on the change itself.
+        """
+        i = bisect.bisect_left(self.times, when)
+        return self.times[i - 1] if i else 0.0
+
+
+def find_steps(stream):
     """Every step header in the stream, as (time, id, title), first hit wins."""
-    # One string of everything printed, with a note of which event each byte
-    # came from, so a match can be turned back into a timestamp.
-    chunks, owner = [], []
-    for i, (t, kind, data) in enumerate(events):
-        if kind != "o":
-            continue
-        chunks.append(data)
-        owner.append((len(data), i, t))
-
-    whole = "".join(chunks)
-    stripped, index = strip_ansi_with_map(whole)
-
-    # offset in `whole` -> the event that produced it
-    bounds, running = [], 0
-    for size, i, t in owner:
-        running += size
-        bounds.append((running, t))
-
-    def time_at(offset):
-        for end, t in bounds:
-            if offset < end:
-                return t
-        return bounds[-1][1] if bounds else 0.0
-
     found, seen = [], set()
-    for m in HEADER.finditer(stripped):
+    for m in HEADER.finditer(stream.text):
         step, title = m.group(1), m.group(2).strip()
         if step in seen:          # tmux repaints; the first one is the real cut
             continue
         seen.add(step)
-        found.append((time_at(index[m.start()]), step, title))
+        found.append((stream.at(m.start()), step, title))
     return found
+
+
+# How far a beat is allowed to be backed up onto the frame before it, so the
+# slide that carries on opens on a picture identical to the one the slide before
+# it ended on. Anything longer and the new slide sits frozen waiting for a
+# change the room has already been shown.
+LEAD = 1.0
+
+
+def clean_label(raw):
+    """A prompt label with whatever tmux repainted next to it taken off.
+
+    The prompt is one line inside a pane, and the same write often carries the
+    pane borders and part of the next pane, so the captured label comes out as
+    "click when you are done talking\u2500\u2500\u252c\u2500\u2500\u2502\u2502" or with the next pane's
+    columns stuck to it. Whitespace is squeezed here and the label is matched as
+    a prefix, which is the only rule that survives a full-screen repaint.
+    """
+    return re.sub(r"\s+", " ", raw).strip()
+
+
+def resolve_gate(stream, label, lo, hi, nth=1):
+    """When a click prompt was ANSWERED, not when it went up.
+
+    `ask` prints its prompt once and blocks, but the countdown prompts redraw
+    themselves every second, so the prompt is on screen for a run of events and
+    what matters is the end of the run: the next thing printed after it is the
+    click landing. Cutting on the prompt's first appearance instead would put
+    the cut before the pause rather than after it, and the slide would open on
+    a wait the room has already sat through.
+    """
+    runs = [(stream.at(m.start()), clean_label(m.group(1)))
+            for m in PROMPT.finditer(stream.text)]
+    runs = [(t, g) for t, g in runs if lo <= t < hi]
+    seen, i = 0, 0
+    while i < len(runs):
+        t, g = runs[i]
+        if not g.startswith(label):
+            i += 1
+            continue
+        j = i
+        while (j + 1 < len(runs) and runs[j + 1][1].startswith(label)
+               and runs[j + 1][0] - runs[j][0] <= 3.0):
+            j += 1
+        seen += 1
+        if seen == nth:
+            # The first write after the prompt stopped being redrawn.
+            k = bisect.bisect_right(stream.times, runs[j][0])
+            return stream.times[k] if k < len(stream.times) else None
+        i = j + 1
+    return None
+
+
+def resolve_text(stream, pattern, lo, hi, nth=1):
+    """When something first appeared on screen inside a step."""
+    hits = 0
+    for m in re.finditer(pattern, stream.text):
+        t = stream.at(m.start())
+        if not (lo <= t < hi):
+            continue
+        hits += 1
+        if hits == nth:
+            return t
+    return None
+
+
+def find_beats(stream, step, lo, hi, spec):
+    """The extra cuts inside one step, as (cut time, title).
+
+    A beat that cannot be found is reported and skipped rather than guessed at.
+    Skipping is the honest failure here: the step still plays, as one slide,
+    the way it did before the beat was written down.
+    """
+    out, complaints = [], []
+    for entry in spec:
+        at = entry["at"]
+        kind, _, arg = at.partition(":")
+        if kind == "gate":
+            t = resolve_gate(stream, arg, lo, hi, entry.get("nth", 1))
+        elif kind == "text":
+            t = resolve_text(stream, arg, lo, hi, entry.get("nth", 1))
+        else:
+            complaints.append(f"    {step}: {at!r} is not a gate: or a text: marker")
+            continue
+        if t is None:
+            complaints.append(f"    {step}: nothing in the step matches {at!r}")
+            continue
+        out.append((t, entry.get("title", "")))
+    out.sort()
+    return out, complaints
 
 
 
@@ -232,7 +356,8 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     header, events, _ = read_cast(src)
-    steps = find_steps(events)
+    stream = Stream(events)
+    steps = find_steps(stream)
     # Step 0 on its own is the title card and nothing after it: the stage opened,
     # the cast was introduced, and whoever was recording stopped before clicking
     # into 1.1. That is a recording of ./stage, just not of the show.
@@ -242,9 +367,7 @@ def main():
         # that stops on the title card is a recording of the stage, it just
         # never left the intro. Telling those apart is one look for step 0's
         # own header, which the driver prints before anything is clicked.
-        intro = strip_ansi_with_map("".join(
-            d for _, kind, d in events if kind == "o"))[0]
-        if INTRO.search(intro):
+        if INTRO.search(stream.text):
             print("  the recording stops at the title card -- step 1.1 was never started",
                   file=sys.stderr)
             print("  run the show through to the end, then quit tmux to stop recording",
@@ -260,17 +383,64 @@ def main():
     # back to cutting from zero.
     marks = steps if steps[0][1] == "0" else [(0.0, "0", "Who is on call")] + steps
     total = events[-1][0] if events else 0.0
-    cuts = []
+
+    beats_spec = json.loads(BEATS.read_text()) if BEATS.exists() else {}
+    cuts, complaints = [], []
     for i, (start, step, title) in enumerate(marks):
         # The last step has no end: it runs to wherever the recording stops, and
         # a number here would only be the same thing said less honestly.
         end = marks[i + 1][0] if i + 1 < len(marks) else None
-        cuts.append({
-            "step": step,
-            "title": title,
-            "from": round(start, 3),
-            "to": None if end is None else round(end, 3),
-        })
+        stop = total if end is None else end
+
+        inner, gripes = find_beats(stream, step, start, stop,
+                                   beats_spec.get(step, []))
+        complaints += gripes
+
+        # Each cut is backed up onto the frame before it, so the slide that
+        # carries on opens on a picture identical to the one the slide before it
+        # ended on and the join is invisible. There is nothing drawn in that
+        # window by construction -- it ends at the previous write -- so nothing
+        # is played twice.
+        # opens[k] is where slide k starts playing, closes[k] where it stops.
+        # They overlap by `lead`: the film before a cut runs up TO the change,
+        # the film after it opens on the frame BEFORE the change. Both show the
+        # same still across the join, and the change itself happens under the
+        # click.
+        opens, closes, titles = [start], [], [title]
+        for when, name in inner:
+            lead = min(LEAD, when - stream.previous_write(when))
+            begin = round(when - lead, 3)
+            if begin - opens[-1] < 2.0:       # too close to the cut before it
+                continue
+            closes.append(round(when, 3))
+            opens.append(begin)
+            titles.append(name or title)
+        closes.append(end)
+
+        for k, begin in enumerate(opens):
+            last = k + 1 == len(opens)
+            cuts.append({
+                # A step with beats numbers them; a step without one keeps the
+                # id the driver printed, so nothing downstream has to know
+                # which kind it is looking at.
+                "step": step if len(opens) == 1 else f"{step}.{k + 1}",
+                "parent": step,
+                "beat": k + 1,
+                "beats": len(opens),
+                # True when this slide is the middle of a film rather than the
+                # start of one: what tells film.mjs to open it on its own first
+                # frame instead of a frame from the middle.
+                "continues": k > 0,
+                "title": titles[k],
+                # The parent step's own span, so a slide that is one beat of a
+                # film can still draw a progress bar for the whole step rather
+                # than refilling one of its own every time the slide changes.
+                "step_from": round(start, 3),
+                "step_to": None if end is None else round(end, 3),
+                "from": round(begin, 3),
+                "to": (None if (last and closes[k] is None)
+                       else round(closes[k], 3)),
+            })
 
     manifest = outdir / f"{src.stem}.cuts.json"
     manifest.write_text(json.dumps({
@@ -280,10 +450,20 @@ def main():
         "cuts": cuts,
     }, indent=2) + "\n")
 
-    print(f"  {src.name} -> {len(cuts)} steps -> {manifest}\n")
+    slides = len(cuts)
+    print(f"  {src.name} -> {len(marks)} steps, {slides} slides -> {manifest}\n")
     for c in cuts:
         length = (c["to"] if c["to"] is not None else total) - c["from"]
-        print(f"  {c['step']:5} {int(length // 60)}:{int(length % 60):02d}  {c['title']}")
+        print(f"  {c['step']:7} {int(length // 60)}:{int(length % 60):02d}  {c['title']}")
+
+    # A beat that could not be found is the one failure here that is silent
+    # otherwise: the step still cuts, as one slide, and looks fine in the
+    # manifest. Said last, where the eye already is.
+    if complaints:
+        print(f"\n  \033[1;31m!\033[0m {len(complaints)} beats in {BEATS.name} "
+              f"did not match this recording and were skipped:", file=sys.stderr)
+        for line in complaints:
+            print(line, file=sys.stderr)
 
     # Said after the lengths rather than before them, because the lengths are
     # the evidence: a fast-forwarded recording looks fine until you notice which
@@ -320,6 +500,8 @@ def main():
     print("\n  --- slides, ready to paste ---\n")
     for c in cuts:
         step, title = c["step"], c["title"]
+        if c.get("beats", 1) > 1:
+            title = f"{c['parent']} \u00b7 {c['beat']}/{c['beats']} \u00b7 {title}"
         if full_bleed:
             print(f"""---
 layout: default

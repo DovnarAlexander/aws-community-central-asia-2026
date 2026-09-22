@@ -454,7 +454,8 @@ def stamp_notes(deck, plan, title_of):
 
         head = note_header(pos, total, title or title_of(s),
                            press_count(deck.read(slide)),
-                           s.get('seconds', 0), running[pos - 1])
+                           s.get('seconds', 0), running[pos - 1],
+                           s.get('speech', 0) if s.get('step') else 0)
         part = 'ppt/' + m.group(1)
         xml = deck.read(part)
         first = re.search(r'(<a:p>.*?</a:p>)', xml, re.S)
@@ -468,7 +469,7 @@ def clock(secs):
     return f'{int(secs // 60)}:{int(secs % 60):02d}'
 
 
-def note_header(pos, total, title, clicks, length=0, upto=0):
+def note_header(pos, total, title, clicks, length=0, upto=0, speech=0):
     """The first line of a note: where you are, and how many presses are left.
 
     Counted from the deck rather than typed into talk.md, because a hand-written
@@ -484,7 +485,16 @@ def note_header(pos, total, title, clicks, length=0, upto=0):
         # The running clock is what a rehearsal is actually checked against:
         # a slide that is ninety seconds long is fine until it is the slide
         # that puts you past the slot.
-        bits.append(f'{clock(length)} \u00b7 by {clock(upto)}')
+        #
+        # A recording also says how long the words underneath it take, because
+        # that is the one slide whose length the speaker does not control. Two
+        # numbers next to each other -- the film, then the talking -- are read
+        # at a glance as "I have room" or "I do not".
+        if speech:
+            bits.append(f'film {clock(length)} \u00b7 say {clock(speech)}')
+        else:
+            bits.append(clock(length))
+        bits.append(f'by {clock(upto)}')
     return ' \u00b7 '.join(bits)
 
 

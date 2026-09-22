@@ -240,7 +240,16 @@ def architecture():
     g += box("keda", *keda, "KEDA\nreads queue depth", size=13, stroke=CYAN, fill=CYAN_TINT)
     g += box("karp", *karp, "Karpenter\nbuys spot nodes", size=13, stroke=CYAN, fill=CYAN_TINT)
     g += box("sys", *syst, "system node\nCoreDNS", size=13, stroke=BORDER, fill="transparent", ink=MUTED)
-    g += box("rds", *rds, "RDS PostgreSQL\nmax_connections 57", size=14)
+    # 60 is what the parameter group sets and what the stage panel shows on the
+    # right of the screen all evening ("DB 56/60 active"). 54 is what the
+    # application can actually open: RDS keeps 4 slots for rds_reserved and 2
+    # for reserved_connections, which infra/modules/database/main.tf spells out.
+    # Both numbers are on the box because the talk uses both -- the screen says
+    # 60, and 54 is the number the room is asked to remember. It said 57, which
+    # is 60 minus Postgres's own superuser_reserved_connections and is the
+    # arithmetic for a Postgres that is not on RDS: the number appeared nowhere
+    # else in the repo and disagreed with every other slide.
+    g += box("rds", *rds, "RDS PostgreSQL\nmax_connections 60\n54 for the app", size=14)
 
     g += arrow("a-api-sqs", api, sqs)
     g += arrow("a-sqs-w", sqs, worker)
