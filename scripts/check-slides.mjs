@@ -28,7 +28,8 @@ const browser = await pw.chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
 
 try {
-  await page.goto(`${base}/1`, { waitUntil: 'networkidle', timeout: 15000 })
+  // The deck routes by hash (routerMode in talk.md), so slide URLs are /#/n.
+  await page.goto(`${base}/#/1`, { waitUntil: 'networkidle', timeout: 15000 })
 } catch {
   console.error(`  nothing answering at ${base} — start the deck first: task deck`)
   await browser.close()
@@ -69,13 +70,13 @@ const measure = () => page.evaluate(() => {
 
 let failed = 0
 for (let slide = 1; slide <= total; slide++) {
-  await page.goto(`${base}/${slide}`, { waitUntil: 'networkidle' })
+  await page.goto(`${base}/#/${slide}`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(900)
   const clicks = await page.evaluate(() => window.__slidev__?.nav?.clicksTotal ?? 0)
 
   let worst = { bottom: -Infinity, right: 0, culprit: '', click: 0 }
   for (let click = 0; click <= clicks; click++) {
-    await page.goto(`${base}/${slide}?clicks=${click}`, { waitUntil: 'networkidle' })
+    await page.goto(`${base}/#/${slide}?clicks=${click}`, { waitUntil: 'networkidle' })
     // Recordings and diagrams settle after the load event; clicks do not.
     await page.waitForTimeout(click === 0 ? 1100 : 450)
     const m = await measure()

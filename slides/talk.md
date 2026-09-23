@@ -28,6 +28,12 @@ drawings:
 class: text-left
 transition: fade
 mdc: true
+# Hash routing, so the built deck serves from any folder of any static host.
+# With the default history router and `--base ./` the app boots and then the
+# router fails to match /whatever/index.html and renders its 404 page -- the
+# "blank deck" is the SPA working and the routing not. The tooling that
+# navigates slide URLs (check-slides.mjs) uses /#/n accordingly.
+routerMode: hash
 layout: cover
 variant: 2
 ---
