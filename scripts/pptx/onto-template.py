@@ -997,16 +997,18 @@ def d_arithmetic(xml, s, ctx):
 
 
 def d_review(xml, s, ctx):
-    """The sentence nobody argues with, the manifest that says it, and the bill.
+    """The sentence nobody argues with, the manifest that says it, and 54.
 
-    The probe itself was missing from this slide: the yaml was extracted and
-    then never placed, so the room was asked to take the cost of a probe it had
-    not been shown.
+    Deliberately innocent: only the three-replica state of the world is here.
+    The escalation to 24 replicas and 96 connections belongs to the demo, so
+    there is no table on this slide any more — the formula is the closing line
+    and the room is left to extrapolate it themselves.
     """
     lines = [l for l in s['prose'].splitlines() if len(l) > 3]
+    body = next((l for l in lines if l.startswith('At three replicas')), lines[1])
     xml = add_text(xml, (L, Y_LEDE, 6.10, 1.75),
                    [(lines[0], 17, INK, True), (None, 0, INK, False),
-                    (lines[1], SZ_BODY, INK, False)])
+                    (body, SZ_BODY, INK, False)])
     lede = str(next_id(xml) - 1)
 
     xml, stat_card = add_shape(xml, (L, 3.62, 6.10, 1.62), 'roundRect',
@@ -1026,7 +1028,7 @@ def d_review(xml, s, ctx):
                        [(c, 12, INK, False) for c in code])
         code_id = str(next_id(xml) - 1)
 
-    rows = s.get('tables', [[]])[0]
+    rows = (s.get('tables') or [[]])[0]
     table = []
     if rows:
         xml, tbl_card = add_shape(xml, (7.0, 3.20, 5.94, 2.04), 'roundRect',
@@ -1040,7 +1042,7 @@ def d_review(xml, s, ctx):
                                [(cell, 11 if head else 16, MUTED if head else INK, head)])
                 table.append(str(next_id(xml) - 1))
 
-    tail = [l for l in lines if l.startswith('max_connections')]
+    tail = [l for l in lines if l.startswith('scans/sec')]
     closing = None
     if tail:
         xml = add_text(xml, (L, Y_CLOSE, R - L, H_CLOSE), [(tail[0], 16, INK, False)])
