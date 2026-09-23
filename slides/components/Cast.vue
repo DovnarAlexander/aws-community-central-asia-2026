@@ -69,13 +69,32 @@ let range = null
 // manifest carries the one `task deck:split` used, so the two cannot drift.
 let idleTimeLimit = 2
 
+// ── where the files are ──────────────────────────────────────────────────────
+// Everything this component reaches for is named at runtime -- a <script> it
+// builds, a fetch, the cast path handed down as a prop -- so Vite never sees
+// these URLs and never rewrites them against the build's base the way it does
+// the <img> on a slide. Left with a leading slash they resolve against the
+// host's root, which is right only while the deck happens to be served from
+// one: from any subfolder the player 404s and the slide reads "asciinema
+// player missing from slides/public/vendor" while the file sits in dist/vendor
+// exactly as built. Same reason the deck routes by hash -- a build that serves
+// from any folder has to mean its assets too, not just its slide URLs.
+//
+// BASE_URL is '/' under the dev server and './' out of `slidev build --base
+// ./`; resolving it against document.baseURI turns either into the folder the
+// deck is actually being served from.
+function asset(path) {
+  const base = new URL(import.meta.env.BASE_URL, document.baseURI)
+  return new URL(String(path).replace(/^\/+/, ''), base).href
+}
+
 // ── the cut manifest ─────────────────────────────────────────────────────────
 // Every cast slide in the deck asks for the same file, so the fetch is shared:
 // one request per recording rather than one per slide.
 const manifests = new Map()
 
 function manifestUrl(src) {
-  return src.replace(/\.cast$/, '.cuts.json')
+  return asset(src.replace(/\.cast$/, '.cuts.json'))
 }
 
 function loadCuts(src) {
@@ -140,11 +159,11 @@ function loadPlayer() {
       const link = document.createElement('link')
       link.id = 'asciinema-css'
       link.rel = 'stylesheet'
-      link.href = '/vendor/asciinema-player.css'
+      link.href = asset('/vendor/asciinema-player.css')
       document.head.appendChild(link)
     }
     const s = document.createElement('script')
-    s.src = '/vendor/asciinema-player.min.js'
+    s.src = asset('/vendor/asciinema-player.min.js')
     s.onload = () => resolve()
     s.onerror = () => reject(new Error('asciinema player missing from slides/public/vendor'))
     document.head.appendChild(s)
@@ -209,7 +228,7 @@ onMounted(async () => {
   }
   if (host.value.textContent) return
 
-  player = window.AsciinemaPlayer.create(props.src, host.value, {
+  player = window.AsciinemaPlayer.create(asset(props.src), host.value, {
     // undefined, not null: the player treats a present-but-empty option as a
     // size of zero rather than as "read it from the recording".
     cols: props.cols || undefined,
