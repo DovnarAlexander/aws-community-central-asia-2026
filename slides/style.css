@@ -316,7 +316,9 @@
    ============================================================ */
 
 /* The QR is dark on white, so it keeps a white plate and a hairline rather
-   than sitting straight on the closing slide's tinted background. */
+   than sitting straight on the closing slide's tinted background. The plate
+   stays white in the dark variant too: a QR code inverted or dimmed is a QR
+   code that stops scanning from the back row. */
 .nq-qr {
   background: #FFFFFF;
   border: 1px solid var(--naviteq-border);
@@ -327,3 +329,70 @@
 }
 
 .nq-qr img { width: 172px; height: 172px; display: block; }
+
+/* ============================================================
+   The dark variant
+
+   One deck, two schemes. `task deck` / `task deck:build` serve the light
+   deck exactly as before (`colorSchema: light` in talk.md); `task deck:dark`
+   / `task deck:build:dark` serve a generated copy whose only difference is
+   `colorSchema: dark`, which is how Slidev puts `dark` on <html>.
+
+   The theme paints everything through the --naviteq-* tokens, so the dark
+   scheme is those tokens redefined, plus the three places the theme writes a
+   colour the tokens cannot reach: the gradient plates the full-bleed layouts
+   set as inline styles, the wordmark bitmap in the footer, and the diagrams,
+   which are SVGs with light-scheme ink baked in at render time.
+
+   The primary moves from brand indigo #3B3DBF to a lifted #9B9DF2: the brand
+   hue is a midtone that reads as headings on paper and as mud on #14152A.
+   The accent orange carries to dark unchanged.
+   ============================================================ */
+html.dark {
+  --naviteq-bg: #14152A;
+  --naviteq-surface: #1E2036;
+  --naviteq-text: #ECEDF4;
+  --naviteq-text-muted: #9CA3B8;
+  --naviteq-border: #303350;
+  --naviteq-primary: #9B9DF2;
+  --naviteq-primary-light: #B3B5F7;
+  /* Inline code above uses primary-dark as its ink; on the dark surface that
+     ink has to be the light end of the ramp, whatever the name says. */
+  --naviteq-primary-dark: #C7C9FA;
+  --slidev-theme-primary: #9B9DF2;
+}
+
+/* The cover, section and end layouts receive their gradient plate as an
+   inline style resolved for the light scheme, which no token can override --
+   so the dark plate is applied over it. One plate per deck, not per variant:
+   the washes are the same two brand colours on a dark ground. */
+html.dark .cover-bg,
+html.dark .section-bg,
+html.dark .end-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 105% -10%, rgba(155, 157, 242, 0.16) 0%, rgba(155, 157, 242, 0.05) 45%, rgba(155, 157, 242, 0) 75%),
+    radial-gradient(ellipse 70% 70% at -5% 110%, rgba(245, 166, 35, 0.10) 0%, rgba(245, 166, 35, 0.035) 45%, rgba(245, 166, 35, 0) 75%),
+    #14152A !important;
+}
+
+/* The diagrams are rendered to SVG with light-scheme ink (#1e1e2f on
+   transparent). This is Excalidraw's own dark-mode treatment -- the same
+   filter its editor applies -- so the drawings match what the room would see
+   in a dark Excalidraw, and there is no second set of files to keep in sync. */
+html.dark .nq-fig .nq-layers img,
+html.dark .nq-fig > img {
+  filter: invert(93%) hue-rotate(180deg);
+}
+
+/* The wordmark's lettering is slate ink with a coloured emblem; on the dark
+   ground the lettering vanishes first. Flattened to white at footer opacity --
+   a monochrome mark is the standard dark-scheme fallback. */
+html.dark .slide-footer .footer-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.55;
+}
+
+/* The QR shadow is indigo-tinted for paper; on dark it just reads as a glow. */
+html.dark .nq-qr {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
