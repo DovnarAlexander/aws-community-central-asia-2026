@@ -242,6 +242,33 @@ tasks:
       - slidev build slides/talk.md --out dist --base ./
       - cmd: printf '\n  \033[1;32m✓\033[0m slides/dist — open index.html, works offline\n\n'
 
+  # The dark deck is the same talk.md with `colorSchema: dark`, generated on
+  # demand -- one source, so the two variants cannot drift. The generated file
+  # is ignored by git; edit talk.md and re-run the task.
+  deck:dark:md:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        sed -e 's/^colorSchema: light$/colorSchema: dark/' \
+            -e 's/^exportFilename: probe-that-killed-itself$/exportFilename: probe-that-killed-itself-dark/' \
+          slides/talk.md > slides/talk-dark.md
+
+  deck:dark:
+    desc: open the dark variant in a browser — same talk.md, dark scheme
+    interactive: true
+    cmds:
+      - task: deck:dark:md
+      - slidev slides/talk-dark.md
+
+  deck:build:dark:
+    desc: build the dark variant to slides/dist-dark — same content, dark scheme
+    silent: true
+    cmds:
+      - task: deck:dark:md
+      - slidev build slides/talk-dark.md --out dist-dark --base ./
+      - cmd: printf '\n  \033[1;32m✓\033[0m slides/dist-dark — open index.html, works offline\n\n'
+
   deck:pdf:
     desc: export a PDF — the only thing SlideShare can take, since it plays nothing
     silent: true

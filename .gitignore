@@ -62,6 +62,11 @@ infra/local.hcl
 slides/dist/
 slides/talk.pdf
 
+# The dark variant is generated from talk.md by `task deck:dark:md` -- one
+# source, two schemes, nothing to keep in sync by hand.
+slides/talk-dark.md
+slides/dist-dark/
+
 # slides/talk.pptx is committed rather than ignored. It is a build output and
 # it is forty-five megabytes, so it does not belong in git by the usual rules,
 # but this one is the artefact a conference is handed and it has to be gettable
