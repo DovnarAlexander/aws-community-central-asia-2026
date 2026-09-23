@@ -184,6 +184,23 @@
   height: auto;
 }
 
+/* A diagram revealed a group per click. The layers are exported on the same
+   origin at the same size (see render-diagrams.mjs), so each one centres
+   itself in the box independently and they stack back into one drawing.
+   All of them are absolute so a hidden layer costs no layout. */
+.nq-fig .nq-layers {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  position: relative;
+}
+
+.nq-fig .nq-layers img {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
 /* ============================================================
    The recorded runs
 
